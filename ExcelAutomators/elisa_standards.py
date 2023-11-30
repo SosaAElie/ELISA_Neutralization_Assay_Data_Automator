@@ -3,10 +3,12 @@ from Classes.Sample import Sample
 from typing import Callable
 import statistics
 import os
+import matplotlib.pyplot as plt
 
 def main(filepath:str, destination:str, samples:list[str], \
         starting_conc:str, suffix:str, dilution_factor:str, dilutions:str = "6",\
-        replicates:str = "2", neg_control:str = "IgG1, Kappa Isotype AB", blank:str = "IgG Depleted Serum")->None:
+        replicates:str = "2", neg_control:str = "IgG1, Kappa Isotype AB", blank:str = "IgG Depleted Serum",\
+        prefix:str = None)->None:
     
     '''User selects whether the samples were run in duplicates or triplicates. The average of the replicates of the samples, standards and any controls are calculated, using
         linear regression the concentration of the samples is determined from the slope of the linear regression calculated from the standards.
@@ -22,10 +24,10 @@ def main(filepath:str, destination:str, samples:list[str], \
     
     plate = ewrapper.get_cell_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
     standard_labels, standard_concentrations = determine_standards(starting_conc, suffix, dilution_factor, dilutions)
-    samples:list[Sample] = [Sample(sample) for sample in samples]
+    samples:list[Sample] = [Sample(f"{prefix}-{sample}") if prefix else Sample(sample) for sample in samples]
     standards:list[Sample] = [Sample(label=label, ab_concentration=concetration) for label, concetration in zip(standard_labels, standard_concentrations)]
     standards.append(Sample(blank))
-    standards.append(Sample(neg_control))
+    standards.append(Sample(neg_control, ab_concentration=0))
     replicates = int(replicates)
     
     if replicates == DUPLICATES: 
@@ -35,16 +37,17 @@ def main(filepath:str, destination:str, samples:list[str], \
         extract_triplicates(plate, samples)
         extract_triplicates(plate, standards, starting_index=len(samples)*3)
 
-    lr_equation, r_squared = linear_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
+    inverse_lr_equation,lr_equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards[:-1]], [standard.average for standard in standards[:-1]])
     
-    for sample in samples:sample.ab_concentration = lr_equation(sample.average)
-    for control in standards[-2:]: control.ab_concentration = lr_equation(control.average)
+    for sample in samples:sample.ab_concentration = inverse_lr_equation(sample.average)
+    for control in standards[-1:]: control.ab_concentration = inverse_lr_equation(control.average)
     
     if replicates == DUPLICATES: write_duplicates(ewrapper, samples, standards, r_squared)
     elif replicates == TRIPLICATES: write_triplicates(ewrapper, samples, standards, r_squared)
    
     ewrapper.write_excel(new_dest)
     os.system(f'start excel "{new_dest}"')
+    linear_regression_plot(lr_equation, [standard.average for standard in standards[:-1]], [standard.ab_concentration for standard in standards[:-1]], samples, r_squared)
 
 def write_duplicates(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None:
     '''Contains the logic to write the values to an excel file assuming duplicates'''
@@ -65,16 +68,16 @@ def write_duplicates(ewrapper:ExcelWrapper, samples:list[Sample], standards:list
     sample_od_average_std = ["OD Average (OD Std)"]
     sample_ab_concentration = ["Calculated AB"]
     
-    standard_labels.extend([standard.label for standard in standards[:-2]])
-    standard_well1.extend([standard.values[0] for standard in standards[:-2]])
-    standard_well2.extend([standard.values[1] for standard in standards[:-2]])
-    standard_od_average_std.extend([f"{standard.average} ({standard.std})" for standard in standards[:-2]])
+    standard_labels.extend([standard.label for standard in standards[:-1]])
+    standard_well1.extend([standard.values[0] for standard in standards[:-1]])
+    standard_well2.extend([standard.values[1] for standard in standards[:-1]])
+    standard_od_average_std.extend([f"{standard.average} ({standard.std})" for standard in standards[:-1]])
     
-    control_labels.extend([control.label for control in standards[-2:]])
-    control_well1.extend([control.values[0] for control in standards[-2:]])
-    control_well2.extend([control.values[1] for control in standards[-2:]])
-    control_od_average_std.extend([f"{control.average} ({control.std})" for control in standards[-2:]])
-    control_ab_concentration.extend([control.ab_concentration for control in standards[-2:]])
+    control_labels.extend([control.label for control in standards[-1:]])
+    control_well1.extend([control.values[0] for control in standards[-1:]])
+    control_well2.extend([control.values[1] for control in standards[-1:]])
+    control_od_average_std.extend([f"{control.average} ({control.std})" for control in standards[-1:]])
+    control_ab_concentration.extend([control.ab_concentration for control in standards[-1:]])
     
     sample_labels.extend([sample.label for sample in samples])
     sample_well1.extend([sample.values[0] for sample in samples])
@@ -167,12 +170,12 @@ def write_triplicates(ewrapper:ExcelWrapper, samples:list[Sample], standards:lis
     ewrapper.add_column("AI", sample_od_average_std)
     ewrapper.add_column("AJ", sample_ab_concentration)
 
-def linear_regression_function(x_values:list[float], y_values:list[float])->tuple[Callable[[float], float], float]:
+def get_linear_regression_function(x_values:list[float], y_values:list[float])->tuple[Callable[[float], float], float]:
     '''Returns a function that is derived from the values of the standards, the function is used to calculate the concentration of AB relative to the OD values of the standards'''
     slope, intercept = statistics.linear_regression(x_values, y_values)
     r_squared = statistics.correlation(x_values, y_values)**2 #The sqaure of the pearson coeffecient is the coefficient of determination
     print("The slope of the linear regression line is: ", slope, "\nThe intercept is: ", intercept, "\nThe R-squared value is: ", r_squared)
-    return lambda x:slope*x+intercept, r_squared
+    return lambda y: (y-intercept)/slope, lambda x:slope*x+intercept, r_squared
 
 def determine_standards(starting_conc:str, suffix:str, dilution_factor:str, dilutions:str = "6")->tuple[list[str], list[float]]:
     '''Returns a list of strings containing the labels used for the standards based of the starting concentration and the dilution factor, assumes the starting
@@ -204,8 +207,8 @@ def extract_duplicates(plate:list[float],group:list[Sample], starting_index = 0)
         second = first+ROWS_PER_COL
         od1 = float(plate[first+starting_index])
         od2 = float(plate[second+starting_index])
-        group[index].values.append(od1)
-        group[index].values.append(od2)
+        group[index].values.append(od1 if od1 >= 0 else 0)
+        group[index].values.append(od2 if od2 >= 0 else 0)
         group[index].average = round(statistics.mean(group[index].values), 4) 
         group[index].std = round(statistics.stdev(group[index].values), 4)
         
@@ -229,3 +232,16 @@ def extract_triplicates(plate:list[float],group:list[Sample], starting_index = 0
         group[index].values.append(od3)
         group[index].average = round(statistics.mean(group[index].values), 4)
         group[index].std = round(statistics.stdev(group[index].values, xbar=1),4)
+
+def linear_regression_plot(linear_reg:Callable[[float], float], standard_ods:list[float], standard_conc:list[float], samples:list[Sample], r_squared:float)->None:
+    '''Adds a set of data points to the matplotlib graph instance to show later'''
+    plt.plot(standard_conc, standard_ods, "go")
+    plt.plot(standard_conc,[linear_reg(c) for c in standard_conc], label = f"R-squared: {round(r_squared, 3)}")
+    plt.legend(loc = "upper center")
+    plt.plot([sample.ab_concentration for sample in samples], [sample.average for sample in samples], "ro")
+    for sample in samples:
+        plt.text(sample.ab_concentration, sample.average, sample.label)
+    plt.xlabel("Ab Concentration (ug/mL)")
+    plt.ylabel("Optical Density")
+    plt.show()
+    

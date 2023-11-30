@@ -6,9 +6,6 @@ import ExcelAutomators.elisa_main as em
 import ExcelAutomators.neutralization_assay_main as nam
 import sqlite3
 
-
-
-        
 class CohortSelectionComboBox(QComboBox):
 
     def __init__(self):
