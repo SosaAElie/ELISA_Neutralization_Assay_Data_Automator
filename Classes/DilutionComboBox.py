@@ -1,10 +1,10 @@
 from PyQt5.QtWidgets import QComboBox, QWidget, QLabel
 from Pages.DilutionPages import ConsistentDilution, InconsistentDilution
 
-class SelectDilutionType(QComboBox):
+class DilutionComboBox(QComboBox):
     def __init__(self, parent: QWidget | None = ...) -> None:
         super().__init__(parent)
-
+        self.addItem("")
         self.addItem("Consistent Dilutions")
         self.addItem("Inconsistent Dilutions")
         self.inconsistent_label = QLabel("Inconsistent Dilutions", parent)
@@ -33,4 +33,4 @@ class SelectDilutionType(QComboBox):
             self.inconsistent.show()
             self.consistent.hide()
             self.consistent_label.hide()
-        self.repaint()
+        

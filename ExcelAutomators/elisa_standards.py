@@ -6,7 +6,7 @@ import os
 import matplotlib.pyplot as plt
 
 def main(filepath:str, destination:str, samples:list[str], \
-        starting_conc:str, suffix:str, dilution_factor:str, dilutions:str = "6",\
+        *standard_args,\
         replicates:str = "2", neg_control:str = "IgG1, Kappa Isotype AB", blank:str = "IgG Depleted Serum",\
         prefix:str = None)->None:
     
@@ -15,6 +15,7 @@ def main(filepath:str, destination:str, samples:list[str], \
         Assumes the standards are always on the right hand side of the plate and the IgG isotype control is on the bottom of the standards, the rest of the wells contain samples.
         Assumes the highest concentration of the standard is 1 ug/mL and the dilution factor is 2x by default
     '''
+    
     DUPLICATES = 2
     TRIPLICATES = 3
     
@@ -23,7 +24,9 @@ def main(filepath:str, destination:str, samples:list[str], \
     new_dest = '/'.join([destination,filepath.replace(".txt", ".xlsx").split('/')[-1]])
     
     plate = ewrapper.get_cell_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
-    standard_labels, standard_concentrations = determine_standards(starting_conc, suffix, dilution_factor, dilutions)
+
+    standard_labels, standard_concentrations = process_standards(standard_args)
+
     samples:list[Sample] = [Sample(f"{prefix}-{sample}") if prefix else Sample(sample) for sample in samples]
     standards:list[Sample] = [Sample(label=label, ab_concentration=concetration) for label, concetration in zip(standard_labels, standard_concentrations)]
     standards.append(Sample(blank))
@@ -244,4 +247,14 @@ def linear_regression_plot(linear_reg:Callable[[float], float], standard_ods:lis
     plt.xlabel("Ab Concentration (ug/mL)")
     plt.ylabel("Optical Density")
     plt.show()
-    
+
+def process_standards(standard_args:list[str])->tuple[list[str], list[float]]:
+    '''Takes in the args passed in by the front end and determines if they came from the
+        InconsistentDilution or ConsistentDilution page and returns a tuple with the concentrations as strings
+        and the concentrations as floats to be used to create instances of the Sample class
+    '''
+    if len(standard_args) == 2:
+        values, unit = standard_args
+        return [f"{value}{unit}" for value in values], [float(value) for value in values]
+    elif len(standard_args) == 4:
+        return determine_standards(*standard_args)

@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFileDialog, QPushButton, QLineEdit, QRadioButton, QComboBox
 from PyQt5.QtGui import QFont, QPixmap
-from Classes.ComboBox import SelectDilutionType
+from Classes.DilutionComboBox import DilutionComboBox
 from Classes.ErrorMessageBox import ErrorMessageBox
 import ExcelAutomators.elisa_standards as es
 from settings import *
@@ -41,7 +41,7 @@ class ElisaStandardsPage(QWidget):
         self.exclude_nums.setPlaceholderText("Enter the samples you don't want to include in the range here. i.e 111-117,113")
         self.vertical_layout.addWidget(self.exclude_nums)
         
-        self.dilution_combobox = SelectDilutionType(self)
+        self.dilution_combobox = DilutionComboBox(self)
         self.vertical_layout.addWidget(self.dilution_combobox)
         
         self.duplicates = QRadioButton("Duplicates")
@@ -83,14 +83,19 @@ class ElisaStandardsPage(QWidget):
         if not self.destination_filepath: 
             ErrorMessageBox("No Destination Selected")
             return
+        
         prefix = self.prefix.text()
         samples = self.sample_cohort(self.starting_sample_num.text(), self.last_sample_num.text(), self.exclude_nums.text().split(","))
-        starting_conc = self.starting_concentration.text()
-        units = self.units.text()
-        dilution_factor = self.dilution_factor.text()
-        dilutions = self.dilutions.text()
+        inconsistent_dilution_widget = self.findChild(QWidget, "InconsistentDilution")
+        consistent_dilution_widget = self.findChild(QWidget, "ConsistentDilution")
         replicates = "2" if self.duplicates.isChecked() else "3"
-        es.main(self.raw_data_filepath, self.destination_filepath, samples, starting_conc, units, dilution_factor, dilutions,replicates, prefix=prefix)
+        
+        if inconsistent_dilution_widget.isVisible():
+            dilution_list, units = inconsistent_dilution_widget.get_input()
+            es.main(self.raw_data_filepath, self.destination_filepath, samples, dilution_list, units, replicates = replicates, prefix=prefix)
+        elif consistent_dilution_widget.isVisible():
+            starting_conc, units, dilution_factor, dilutions = consistent_dilution_widget.get_input()
+            es.main(self.raw_data_filepath, self.destination_filepath, samples, starting_conc, units, dilution_factor, dilutions, replicates=replicates, prefix=prefix)
 ### Imported from elisa_main.py
 
     def sample_cohort(self, first:str, last:str, excluded:list[str])->list[int]:
