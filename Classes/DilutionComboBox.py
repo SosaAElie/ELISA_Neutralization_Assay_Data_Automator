@@ -33,4 +33,10 @@ class DilutionComboBox(QComboBox):
             self.inconsistent.show()
             self.consistent.hide()
             self.consistent_label.hide()
+        else:
+            self.inconsistent_label.hide()
+            self.inconsistent.hide()
+            self.consistent.hide()
+            self.consistent_label.hide()
+            
         

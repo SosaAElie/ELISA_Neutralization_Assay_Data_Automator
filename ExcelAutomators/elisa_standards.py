@@ -2,8 +2,10 @@ from Classes.ExcelWrapper import ExcelWrapper
 from Classes.Sample import Sample
 from typing import Callable
 import statistics
+import math
 import os
 import matplotlib.pyplot as plt
+
 
 def main(filepath:str, destination:str, samples:list[str], \
         *standard_args,\
@@ -25,7 +27,7 @@ def main(filepath:str, destination:str, samples:list[str], \
     
     plate = ewrapper.get_cell_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
 
-    standard_labels, standard_concentrations = process_standards(standard_args)
+    standard_labels, standard_concentrations, units = process_standards(standard_args)
 
     samples:list[Sample] = [Sample(f"{prefix}-{sample}") if prefix else Sample(sample) for sample in samples]
     standards:list[Sample] = [Sample(label=label, ab_concentration=concetration) for label, concetration in zip(standard_labels, standard_concentrations)]
@@ -40,17 +42,22 @@ def main(filepath:str, destination:str, samples:list[str], \
         extract_triplicates(plate, samples)
         extract_triplicates(plate, standards, starting_index=len(samples)*3)
 
-    inverse_lr_equation,lr_equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards[:-1]], [standard.average for standard in standards[:-1]])
+    #inverse_lr_equation,lr_equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
+    inverse_ln_equation, ln_equation, ln_r_squared = get_logarithmic_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
     
-    for sample in samples:sample.ab_concentration = inverse_lr_equation(sample.average)
-    for control in standards[-1:]: control.ab_concentration = inverse_lr_equation(control.average)
     
-    if replicates == DUPLICATES: write_duplicates(ewrapper, samples, standards, r_squared)
-    elif replicates == TRIPLICATES: write_triplicates(ewrapper, samples, standards, r_squared)
+    # for sample in samples:sample.ab_concentration = inverse_lr_equation(sample.average)
+    # for control in standards[-2:]: control.ab_concentration = inverse_lr_equation(control.average)
+    
+    for sample in samples:sample.ab_concentration = inverse_ln_equation(sample.average)
+    for control in standards[-2:]: control.ab_concentration = inverse_ln_equation(control.average)
+    
+    if replicates == DUPLICATES: write_duplicates(ewrapper, samples, standards, ln_r_squared)
+    elif replicates == TRIPLICATES: write_triplicates(ewrapper, samples, standards, ln_r_squared)
    
     ewrapper.write_excel(new_dest)
-    os.system(f'start excel "{new_dest}"')
-    linear_regression_plot(lr_equation, [standard.average for standard in standards[:-1]], [standard.ab_concentration for standard in standards[:-1]], samples, r_squared)
+    #os.system(f'start excel "{new_dest}"')
+    regression_plot(ln_equation, [standard.average for standard in standards[:-2]], [standard.ab_concentration for standard in standards[:-2]], samples, ln_r_squared, units)
 
 def write_duplicates(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None:
     '''Contains the logic to write the values to an excel file assuming duplicates'''
@@ -173,14 +180,24 @@ def write_triplicates(ewrapper:ExcelWrapper, samples:list[Sample], standards:lis
     ewrapper.add_column("AI", sample_od_average_std)
     ewrapper.add_column("AJ", sample_ab_concentration)
 
-def get_linear_regression_function(x_values:list[float], y_values:list[float])->tuple[Callable[[float], float], float]:
-    '''Returns a function that is derived from the values of the standards, the function is used to calculate the concentration of AB relative to the OD values of the standards'''
+def get_linear_regression_function(x_values:list[float], y_values:list[float])->tuple[Callable[[float], float], Callable[[float], float], float]:
+    '''Returns the inverse linear regression function, linear regression function and R-squared value that are derived from standards, 
+    the inverse linear function is used to calculate the concentration of AB relative to the OD values of the standards'''
     slope, intercept = statistics.linear_regression(x_values, y_values)
     r_squared = statistics.correlation(x_values, y_values)**2 #The sqaure of the pearson coeffecient is the coefficient of determination
     print("The slope of the linear regression line is: ", slope, "\nThe intercept is: ", intercept, "\nThe R-squared value is: ", r_squared)
     return lambda y: (y-intercept)/slope, lambda x:slope*x+intercept, r_squared
 
-def determine_standards(starting_conc:str, suffix:str, dilution_factor:str, dilutions:str = "6")->tuple[list[str], list[float]]:
+def get_logarithmic_regression_function(x_values:list[float], y_values:list[float])->tuple[Callable[[float], float], Callable[[float], float], float]:
+    '''Returns the inverse logarithmic regression function, logarithmic regression function and R-squared value that are derived from standards, 
+    the inverse logarithmic function is used to calculate the concentration of AB relative to the OD values of the standards'''
+    ln_x_values = [math.log(x) for x in x_values]
+    slope, intercept = statistics.linear_regression(ln_x_values, y_values)
+    r_squared = statistics.correlation(ln_x_values, y_values)
+    print("The slope of the logarithmic regression line is: ", slope, "\nThe intercept is: ", intercept, "\nThe R-squared value is: ", r_squared)
+    return lambda y: math.exp((y-intercept)/slope), lambda x: slope*math.log(x)+intercept, r_squared
+    
+def determine_standards(starting_conc:str, suffix:str, dilution_factor:str, dilutions:str = "6")->tuple[list[str], list[float], str]:
     '''Returns a list of strings containing the labels used for the standards based of the starting concentration and the dilution factor, assumes the starting
         concentration is diluted 6 times.
     '''
@@ -195,7 +212,7 @@ def determine_standards(starting_conc:str, suffix:str, dilution_factor:str, dilu
         label = f"{prv}{suffix}"
         labels.append(label)
         concentrations.append(prv)
-    return (labels, concentrations)
+    return (labels, concentrations, suffix)
 
 def extract_duplicates(plate:list[float],group:list[Sample], starting_index = 0)->None:
     '''Modifies the list of Samples and appends the number of associated values, i.e assumes each sample is run in duplicates and 8 samples per column,
@@ -236,25 +253,25 @@ def extract_triplicates(plate:list[float],group:list[Sample], starting_index = 0
         group[index].average = round(statistics.mean(group[index].values), 4)
         group[index].std = round(statistics.stdev(group[index].values, xbar=1),4)
 
-def linear_regression_plot(linear_reg:Callable[[float], float], standard_ods:list[float], standard_conc:list[float], samples:list[Sample], r_squared:float)->None:
+def regression_plot(inv_reg_equation:Callable[[float], float], standard_ods:list[float], standard_conc:list[float], samples:list[Sample], r_squared:float, unit:str)->None:
     '''Adds a set of data points to the matplotlib graph instance to show later'''
     plt.plot(standard_conc, standard_ods, "go")
-    plt.plot(standard_conc,[linear_reg(c) for c in standard_conc], label = f"R-squared: {round(r_squared, 3)}")
+    plt.plot(standard_conc,[inv_reg_equation(c) for c in standard_conc], label = f"R-squared: {round(r_squared, 3)}")
     plt.legend(loc = "upper center")
     plt.plot([sample.ab_concentration for sample in samples], [sample.average for sample in samples], "ro")
     for sample in samples:
         plt.text(sample.ab_concentration, sample.average, sample.label)
-    plt.xlabel("Ab Concentration (ug/mL)")
+    plt.xlabel(f"Ab Concentration ({unit})")
     plt.ylabel("Optical Density")
     plt.show()
 
-def process_standards(standard_args:list[str])->tuple[list[str], list[float]]:
+def process_standards(standard_args:list[str])->tuple[list[str], list[float], str]:
     '''Takes in the args passed in by the front end and determines if they came from the
         InconsistentDilution or ConsistentDilution page and returns a tuple with the concentrations as strings
         and the concentrations as floats to be used to create instances of the Sample class
     '''
     if len(standard_args) == 2:
         values, unit = standard_args
-        return [f"{value}{unit}" for value in values], [float(value) for value in values]
+        return [f"{value}{unit}" for value in values], [float(value) for value in values], unit
     elif len(standard_args) == 4:
         return determine_standards(*standard_args)
