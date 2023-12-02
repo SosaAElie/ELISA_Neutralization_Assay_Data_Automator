@@ -11,7 +11,9 @@ class ExcelWrapper:
     def __init__(self, filepath:str):
         '''Takes in a text file and produces and excel file or takes a an excel filepath'''
         if filepath.find(".txt") >= 0:
-            self.wkbk, self.wkst = self.__create_excel(self.__get_data(filepath))
+            self.wkbk, self.wkst = self.__create_excel(self.__get_data(filepath, "utf-16", "\t"))
+        elif filepath.find(".csv") >= 0:
+            self.wkbk, self.wkst = self.__create_excel(self.__get_data(filepath, "utf-8", ","))
         elif filepath.find(".xlsx") >= 0:
             self.wkbk = openpyxl.load_workbook(filepath)
             self.wkst = self.wkbk.active
@@ -19,14 +21,14 @@ class ExcelWrapper:
             raise ValueError
         self.filepath = filepath
 
-    def __get_data(self, filepath:str)->list[list]:
+    def __get_data(self, filepath:str, encoding:str, delimiter:str )->list[list]:
         '''Gets the data from a utf-16 encoded text file and returns it as a list of lists'''
         data = []
-
-        with open(filepath, "r", encoding="utf-16") as raw_file:
-            raw_data = csv.DictReader(raw_file, delimiter="\t")
+        
+        with open(filepath, "r", encoding=encoding) as raw_file:
+            raw_data = csv.DictReader(raw_file, delimiter=delimiter)
             for row_dict in raw_data: data.append([val for val in row_dict.values()])
-
+        print(data)
         return [self.__flatten_list(item) for item in data]
     
     def __create_excel(self,data:list[list], col_limit = 14)->tuple[Workbook, Worksheet]:

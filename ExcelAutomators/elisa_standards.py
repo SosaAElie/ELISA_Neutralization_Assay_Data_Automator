@@ -275,3 +275,12 @@ def process_standards(standard_args:list[str])->tuple[list[str], list[float], st
         return [f"{value}{unit}" for value in values], [float(value) for value in values], unit
     elif len(standard_args) == 4:
         return determine_standards(*standard_args)
+
+def process_template(filepath:str)->list[Sample]:
+    '''Opens the filepath passed in from the frontend for a .csv file that contains a 12 by 8, 96 well plate layout
+        The layout corresponds to the layout of the data, i.e the sample label in the upper left corner matches the
+        optical plate reader data in that corner as well.
+    '''
+
+    ewrapper = ExcelWrapper(filepath)
+    ewrapper.write_excel(filepath.replace(".csv", ".xlsx"))
