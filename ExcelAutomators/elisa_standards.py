@@ -7,10 +7,7 @@ import os
 import matplotlib.pyplot as plt
 
 
-def main(filepath:str, destination:str, samples:list[str], \
-        *standard_args,\
-        replicates:str = "2", neg_control:str = "IgG1, Kappa Isotype AB", blank:str = "IgG Depleted Serum",\
-        prefix:str = None)->None:
+def main(data_filepath:str, template_filepath:str, destination:str)->None:
     
     '''User selects whether the samples were run in duplicates or triplicates. The average of the replicates of the samples, standards and any controls are calculated, using
         linear regression the concentration of the samples is determined from the slope of the linear regression calculated from the standards.
@@ -18,46 +15,54 @@ def main(filepath:str, destination:str, samples:list[str], \
         Assumes the highest concentration of the standard is 1 ug/mL and the dilution factor is 2x by default
     '''
     
-    DUPLICATES = 2
-    TRIPLICATES = 3
+    ewrapper = ExcelWrapper(data_filepath)
+    new_dest = '/'.join([destination,data_filepath.replace(".txt", ".xlsx").split('/')[-1]])
     
+    plate = ewrapper.get_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
+    template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
+    samples, standards, units = merge_plate_template(plate, template)
+    inverse_lr_equation,lr_equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
+    #inverse_ln_equation, ln_equation, ln_r_squared = get_logarithmic_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
     
-    ewrapper = ExcelWrapper(filepath)
-    new_dest = '/'.join([destination,filepath.replace(".txt", ".xlsx").split('/')[-1]])
+    for standard in standards: standard.calculated_ab = inverse_lr_equation(standard.average)
+    for sample in samples:sample.calculated_ab = inverse_lr_equation(sample.average)
+    for control in standards[-2:]: control.calculated_ab = inverse_lr_equation(control.average)
     
-    plate = ewrapper.get_cell_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
+    # for sample in samples:sample.ab_concentration = inverse_ln_equation(sample.average)
+    # for control in standards[-2:]: control.ab_concentration = inverse_ln_equation(control.average)
+    write_to_excel(ewrapper, samples, standards, r_squared)
 
-    standard_labels, standard_concentrations, units = process_standards(standard_args)
-
-    samples:list[Sample] = [Sample(f"{prefix}-{sample}") if prefix else Sample(sample) for sample in samples]
-    standards:list[Sample] = [Sample(label=label, ab_concentration=concetration) for label, concetration in zip(standard_labels, standard_concentrations)]
-    standards.append(Sample(blank))
-    standards.append(Sample(neg_control, ab_concentration=0))
-    replicates = int(replicates)
-    
-    if replicates == DUPLICATES: 
-        extract_duplicates(plate, samples)
-        extract_duplicates(plate, standards, starting_index=len(samples)*2)
-    elif replicates == TRIPLICATES:
-        extract_triplicates(plate, samples)
-        extract_triplicates(plate, standards, starting_index=len(samples)*3)
-
-    #inverse_lr_equation,lr_equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
-    inverse_ln_equation, ln_equation, ln_r_squared = get_logarithmic_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
-    
-    
-    # for sample in samples:sample.ab_concentration = inverse_lr_equation(sample.average)
-    # for control in standards[-2:]: control.ab_concentration = inverse_lr_equation(control.average)
-    
-    for sample in samples:sample.ab_concentration = inverse_ln_equation(sample.average)
-    for control in standards[-2:]: control.ab_concentration = inverse_ln_equation(control.average)
-    
-    if replicates == DUPLICATES: write_duplicates(ewrapper, samples, standards, ln_r_squared)
-    elif replicates == TRIPLICATES: write_triplicates(ewrapper, samples, standards, ln_r_squared)
-   
     ewrapper.write_excel(new_dest)
-    #os.system(f'start excel "{new_dest}"')
-    regression_plot(ln_equation, [standard.average for standard in standards[:-2]], [standard.ab_concentration for standard in standards[:-2]], samples, ln_r_squared, units)
+    os.system(f'start excel "{new_dest}"')
+    regression_plot(lr_equation, [standard.average for standard in standards[:-2]], [standard.ab_concentration for standard in standards[:-2]], samples, r_squared, units)
+
+def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None:
+    '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''
+    sample_headers = ["Samples"]
+    standard_headers = ["Standards"]
+
+    sample_wells = max([len(sample.values) for sample in samples])
+    standard_wells = max([len(standard.values) for standard in standards])
+
+    for num in range(1, sample_wells+1):sample_headers.append(f"Well {num}")
+    for num in range(1, standard_wells+1):standard_headers.append(f"Well {num}")
+    sample_headers.append("OD Average (std)")
+    sample_headers.append("Calculated Ab")
+    standard_headers.append("OD Average (std)")
+    standard_headers.append("Calculated Ab")
+
+
+    ewrapper.add_row(row=1, data=standard_headers, start_col="Q")
+    for row, standard in zip(range(2, len(standards)+2), standards):
+        last_col = ewrapper.add_row(row=row, data=standard.get_all_values(), start_col="Q")
+    
+    ewrapper.add_column(last_col+1, ["R-Squared", r_squared], start_row=1)
+
+    ewrapper.add_row(row=1, data=sample_headers, start_col=last_col+3)
+    for row, sample in zip(range(2, len(samples)+2),samples):
+        ewrapper.add_row(row=row, data=sample.get_all_values(), start_col=last_col+3)
+    
+    return None
 
 def write_duplicates(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None:
     '''Contains the logic to write the values to an excel file assuming duplicates'''
@@ -251,16 +256,16 @@ def extract_triplicates(plate:list[float],group:list[Sample], starting_index = 0
         group[index].values.append(od2)
         group[index].values.append(od3)
         group[index].average = round(statistics.mean(group[index].values), 4)
-        group[index].std = round(statistics.stdev(group[index].values, xbar=1),4)
+        group[index].std = round(statistics.stdev(group[index].values),4)
 
 def regression_plot(inv_reg_equation:Callable[[float], float], standard_ods:list[float], standard_conc:list[float], samples:list[Sample], r_squared:float, unit:str)->None:
     '''Adds a set of data points to the matplotlib graph instance to show later'''
     plt.plot(standard_conc, standard_ods, "go")
     plt.plot(standard_conc,[inv_reg_equation(c) for c in standard_conc], label = f"R-squared: {round(r_squared, 3)}")
     plt.legend(loc = "upper center")
-    plt.plot([sample.ab_concentration for sample in samples], [sample.average for sample in samples], "ro")
+    plt.plot([sample.calculated_ab for sample in samples], [sample.average for sample in samples], "ro")
     for sample in samples:
-        plt.text(sample.ab_concentration, sample.average, sample.label)
+        plt.text(sample.calculated_ab, sample.average, sample.label)
     plt.xlabel(f"Ab Concentration ({unit})")
     plt.ylabel("Optical Density")
     plt.show()
@@ -276,11 +281,72 @@ def process_standards(standard_args:list[str])->tuple[list[str], list[float], st
     elif len(standard_args) == 4:
         return determine_standards(*standard_args)
 
-def process_template(filepath:str)->list[Sample]:
+def merge_plate_template(plate:list[str], template:list[str])->tuple[list[Sample], list[Sample]]:
+    '''Iterates through each list and creates two lists that contains only unique values from the template list, Sample and Standards.
+    The lists are seperated based on the prefix given to the name of the sample/standard/control, i.e 'Unknown', 'Standards', 'Control'. '''
+    STANDARD = "standard"
+    CONTROL = "control"
+    SAMPLE = "sample"
+    
+    samples:dict[str, Sample] = {}
+    standards:dict[str, Sample] = {}
+    units = ""
+    prefixes = get_prefixes(template)
+    labels = remove_prefixes(template)
+
+    for prefix, label, od in zip(prefixes, labels, plate):
+        od = float(od) if float(od) >= 0 else 0
+        if prefix == STANDARD:
+            conc = float(remove_unit(label))
+            units = get_unit(label)
+            check_and_append(standards, label, od, conc)
+        elif prefix == CONTROL:
+            check_and_append(standards, label, od)
+        elif prefix == SAMPLE:
+            check_and_append(samples, label, od)
+
+    s = []
+    s2 = []
+
+    for sample in samples.values():
+        sample.average = round(statistics.mean(sample.values), 4)
+        sample.std = round(statistics.stdev(sample.values),4)
+        s.append(sample)
+
+    for standard in standards.values():
+        standard.average = round(statistics.mean(standard.values), 4)
+        standard.std = round(statistics.stdev(standard.values),4)
+        s2.append(standard)
+
+    return s, s2, units
+
+def check_and_append(storage:dict[str, Sample], label:str, od:float, conc:float = None)->None:
+    if current := storage.get(label,False):
+        current.values.append(od)
+    else:
+        current = Sample(label, ab_concentration=conc) if conc else Sample(label)
+        current.values.append(od)
+        storage[label] = current
+
+def remove_prefixes(vals:list[str], sep:str = "-")->list[str]:
+    '''Removes the prefix from the rest of the string using the 'seperator' as the barrier between both of them'''
+    return [val.split(sep)[-1] for val in vals]
+
+def get_prefixes(vals:list[str], seperator:str = "-")->list[str]:
+    '''Returns a list of prefixes from the rest of the string using the 'seperator' as the barrier between both of them'''
+    return [val.split(sep=seperator)[0].lower() for val in vals]
+
+def remove_unit(val:str)->str:
+    '''Assumes the units are 4 characters and are located at the end of the string'''
+    return val[:-5]
+
+def get_unit(val:str)->str:
+    '''Assumes the units are 4 characters and are located at the end of the string'''
+    return val[-4:]
+
+def get_template(filepath:str)->list[str]:
     '''Opens the filepath passed in from the frontend for a .csv file that contains a 12 by 8, 96 well plate layout
         The layout corresponds to the layout of the data, i.e the sample label in the upper left corner matches the
         optical plate reader data in that corner as well.
     '''
-
-    ewrapper = ExcelWrapper(filepath)
-    ewrapper.write_excel(filepath.replace(".csv", ".xlsx"))
+    return ExcelWrapper(filepath).get_cell_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
