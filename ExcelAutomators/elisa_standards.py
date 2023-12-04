@@ -36,7 +36,7 @@ def main(data_filepath:str, template_filepath:str, destination:str)->None:
     os.system(f'start excel "{new_dest}"')
     regression_plot(lr_equation, [standard.average for standard in standards[:-2]], [standard.ab_concentration for standard in standards[:-2]], samples, r_squared, units)
 
-def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None:
+def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None: 
     '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''
     sample_headers = ["Samples"]
     standard_headers = ["Standards"]
@@ -51,16 +51,29 @@ def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[S
     standard_headers.append("OD Average (std)")
     standard_headers.append("Calculated Ab")
 
+    sample_data_length = len(sample_headers)
+    standard_data_length = len(standard_headers)
 
     ewrapper.add_row(row=1, data=standard_headers, start_col="Q")
-    for row, standard in zip(range(2, len(standards)+2), standards):
-        last_col = ewrapper.add_row(row=row, data=standard.get_all_values(), start_col="Q")
     
+    for row, standard in zip(range(2, len(standards)+2), standards):
+        standard_data = standard.get_all_values()
+
+        if len(standard_data) != standard_data_length:
+            while len(standard_data) != standard_data_length:
+                standard_data.insert(-2, "")
+
+        last_col = ewrapper.add_row(row=row, data=standard_data, start_col="Q")
+            
     ewrapper.add_column(last_col+1, ["R-Squared", r_squared], start_row=1)
 
     ewrapper.add_row(row=1, data=sample_headers, start_col=last_col+3)
     for row, sample in zip(range(2, len(samples)+2),samples):
-        ewrapper.add_row(row=row, data=sample.get_all_values(), start_col=last_col+3)
+        sample_data = sample.get_all_values()
+        if len(sample_data) != sample_data_length:
+            while len(sample_data) != sample_data_length:
+                sample_data.insert(-2, "")
+        ewrapper.add_row(row=row, data=sample_data, start_col=last_col+3)
     
     return None
 
@@ -310,12 +323,12 @@ def merge_plate_template(plate:list[str], template:list[str])->tuple[list[Sample
 
     for sample in samples.values():
         sample.average = round(statistics.mean(sample.values), 4)
-        sample.std = round(statistics.stdev(sample.values),4)
+        sample.std = round(statistics.stdev(sample.values),4) if len(sample.values) > 1 else 0
         s.append(sample)
 
     for standard in standards.values():
         standard.average = round(statistics.mean(standard.values), 4)
-        standard.std = round(statistics.stdev(standard.values),4)
+        standard.std = round(statistics.stdev(standard.values),4) if len(standard.values) > 1 else 0
         s2.append(standard)
 
     return s, s2, units
