@@ -21,7 +21,7 @@ def main(data_filepath:str, template_filepath:str, destination:str)->None:
     plate = ewrapper.get_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
     template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
     samples, standards, units = merge_plate_template(plate, template)
-    inverse_lr_equation,lr_equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
+    inverse_lr_equation,lr_equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
     #inverse_ln_equation, ln_equation, ln_r_squared = get_logarithmic_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
     
     for standard in standards: standard.calculated_ab = inverse_lr_equation(standard.average)
@@ -34,7 +34,7 @@ def main(data_filepath:str, template_filepath:str, destination:str)->None:
 
     ewrapper.write_excel(new_dest)
     os.system(f'start excel "{new_dest}"')
-    regression_plot(lr_equation, [standard.average for standard in standards[:-2]], [standard.ab_concentration for standard in standards[:-2]], samples, r_squared, units)
+    regression_plot(lr_equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units)
 
 def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None: 
     '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''
@@ -271,14 +271,20 @@ def extract_triplicates(plate:list[float],group:list[Sample], starting_index = 0
         group[index].average = round(statistics.mean(group[index].values), 4)
         group[index].std = round(statistics.stdev(group[index].values),4)
 
-def regression_plot(inv_reg_equation:Callable[[float], float], standard_ods:list[float], standard_conc:list[float], samples:list[Sample], r_squared:float, unit:str)->None:
+def regression_plot(inv_reg_equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str)->None:
     '''Adds a set of data points to the matplotlib graph instance to show later'''
-    plt.plot(standard_conc, standard_ods, "go")
-    plt.plot(standard_conc,[inv_reg_equation(c) for c in standard_conc], label = f"R-squared: {round(r_squared, 3)}")
+    plt.plot([standard.ab_concentration for standard in standards], [standard.average for standard in standards], "go")
+    for standard in standards:
+        plt.text(standard.ab_concentration, standard.average, standard.label)
+    
+    plt.plot([standard.ab_concentration for standard in standards],[inv_reg_equation(standard.ab_concentration) for standard in standards], label = f"R-squared: {round(r_squared, 3)}")
     plt.legend(loc = "upper center")
+    
+    
     plt.plot([sample.calculated_ab for sample in samples], [sample.average for sample in samples], "ro")
     for sample in samples:
         plt.text(sample.calculated_ab, sample.average, sample.label)
+    
     plt.xlabel(f"Ab Concentration ({unit})")
     plt.ylabel("Optical Density")
     plt.show()
@@ -312,11 +318,11 @@ def merge_plate_template(plate:list[str], template:list[str])->tuple[list[Sample
         if prefix == STANDARD:
             conc = float(remove_unit(label))
             units = get_unit(label)
-            check_and_append(standards, label, od, conc)
+            check_and_append(standards, label, od, prefix, conc)
         elif prefix == CONTROL:
-            check_and_append(standards, label, od)
+            check_and_append(standards, label, od, prefix)
         elif prefix == SAMPLE:
-            check_and_append(samples, label, od)
+            check_and_append(samples, label, od, prefix)
 
     s = []
     s2 = []
@@ -333,11 +339,11 @@ def merge_plate_template(plate:list[str], template:list[str])->tuple[list[Sample
 
     return s, s2, units
 
-def check_and_append(storage:dict[str, Sample], label:str, od:float, conc:float = None)->None:
+def check_and_append(storage:dict[str, Sample], label:str, od:float, sample_type:str, conc:float = None)->None:
     if current := storage.get(label,False):
         current.values.append(od)
     else:
-        current = Sample(label, ab_concentration=conc) if conc else Sample(label)
+        current = Sample(label, ab_concentration=conc, sample_type=sample_type) if conc else Sample(label)
         current.values.append(od)
         storage[label] = current
 
@@ -355,7 +361,7 @@ def remove_unit(val:str)->str:
 
 def get_unit(val:str)->str:
     '''Assumes the units are 4 characters and are located at the end of the string'''
-    return val[-4:]
+    return val[-5:]
 
 def get_template(filepath:str)->list[str]:
     '''Opens the filepath passed in from the frontend for a .csv file that contains a 12 by 8, 96 well plate layout
