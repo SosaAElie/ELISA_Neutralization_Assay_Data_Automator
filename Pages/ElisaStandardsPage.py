@@ -24,6 +24,12 @@ class ElisaStandardsPage(QWidget):
         self.logo_label.setPixmap(QPixmap('./Images/logo2.png').scaled(600,450))
         self.vertical_layout.addWidget(self.logo_label)
         
+        self.linear_reg = QRadioButton("Linear Regression", self)
+        self.vertical_layout.addWidget(self.linear_reg)
+        
+        self.log_reg = QRadioButton("Logarithmic Regression", self)
+        self.vertical_layout.addWidget(self.log_reg)
+        
         self.select_file_button = QPushButton('Select Raw Data File')
         self.vertical_layout.addWidget(self.select_file_button)
         self.select_file_button.clicked.connect(self.select_data_file)
@@ -62,6 +68,6 @@ class ElisaStandardsPage(QWidget):
         if not self.destination_filepath: 
             ErrorMessageBox("No Destination Selected")
             return
-        
-        es.main(self.data_filepath, self.template_filepath, self.destination_filepath)
+
+        es.main(self.data_filepath, self.template_filepath, self.destination_filepath, linear= self.linear_reg.isChecked(), logarthimic= self.log_reg.isChecked())
        

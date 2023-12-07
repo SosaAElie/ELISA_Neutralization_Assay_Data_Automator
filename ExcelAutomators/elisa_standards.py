@@ -7,34 +7,34 @@ import os
 import matplotlib.pyplot as plt
 
 
-def main(data_filepath:str, template_filepath:str, destination:str)->None:
+def main(data_filepath:str, template_filepath:str, destination:str, linear:bool = True, logarthimic:bool = False)->None:
     
     '''User selects whether the samples were run in duplicates or triplicates. The average of the replicates of the samples, standards and any controls are calculated, using
         linear regression the concentration of the samples is determined from the slope of the linear regression calculated from the standards.
         Assumes the standards are always on the right hand side of the plate and the IgG isotype control is on the bottom of the standards, the rest of the wells contain samples.
         Assumes the highest concentration of the standard is 1 ug/mL and the dilution factor is 2x by default
     '''
-    
+   
     ewrapper = ExcelWrapper(data_filepath)
     new_dest = '/'.join([destination,data_filepath.replace(".txt", ".xlsx").split('/')[-1]])
     
     plate = ewrapper.get_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
     template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
     samples, standards, units = merge_plate_template(plate, template)
-    inverse_lr_equation,lr_equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
-    #inverse_ln_equation, ln_equation, ln_r_squared = get_logarithmic_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
     
-    for standard in standards: standard.calculated_ab = inverse_lr_equation(standard.average)
-    for sample in samples:sample.calculated_ab = inverse_lr_equation(sample.average)
-    for control in standards[-2:]: control.calculated_ab = inverse_lr_equation(control.average)
+    if linear:
+        inverse_equation,equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
+    else:
+        inverse_equation, equation, r_squared = get_logarithmic_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
     
-    # for sample in samples:sample.ab_concentration = inverse_ln_equation(sample.average)
-    # for control in standards[-2:]: control.ab_concentration = inverse_ln_equation(control.average)
+    for standard in standards: standard.calculated_ab = inverse_equation(standard.average)
+    for sample in samples:sample.calculated_ab = inverse_equation(sample.average)
+    
     write_to_excel(ewrapper, samples, standards, r_squared)
 
     ewrapper.write_excel(new_dest)
     os.system(f'start excel "{new_dest}"')
-    regression_plot(lr_equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units)
+    regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, linear, logarthimic)
 
 def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None: 
     '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''
@@ -202,6 +202,7 @@ def get_linear_regression_function(x_values:list[float], y_values:list[float])->
     '''Returns the inverse linear regression function, linear regression function and R-squared value that are derived from standards, 
     the inverse linear function is used to calculate the concentration of AB relative to the OD values of the standards'''
     slope, intercept = statistics.linear_regression(x_values, y_values)
+    
     r_squared = statistics.correlation(x_values, y_values)**2 #The sqaure of the pearson coeffecient is the coefficient of determination
     print("The slope of the linear regression line is: ", slope, "\nThe intercept is: ", intercept, "\nThe R-squared value is: ", r_squared)
     return lambda y: (y-intercept)/slope, lambda x:slope*x+intercept, r_squared
@@ -209,8 +210,9 @@ def get_linear_regression_function(x_values:list[float], y_values:list[float])->
 def get_logarithmic_regression_function(x_values:list[float], y_values:list[float])->tuple[Callable[[float], float], Callable[[float], float], float]:
     '''Returns the inverse logarithmic regression function, logarithmic regression function and R-squared value that are derived from standards, 
     the inverse logarithmic function is used to calculate the concentration of AB relative to the OD values of the standards'''
-    ln_x_values = [math.log(x) for x in x_values]
-    slope, intercept = statistics.linear_regression(ln_x_values, y_values)
+    ln_x_values = [math.log(x) for x in x_values if x != 0]
+    filtered_y_values = [y for y,x in zip(y_values, x_values) if x != 0]
+    slope, intercept = statistics.linear_regression(ln_x_values, filtered_y_values)
     r_squared = statistics.correlation(ln_x_values, y_values)
     print("The slope of the logarithmic regression line is: ", slope, "\nThe intercept is: ", intercept, "\nThe R-squared value is: ", r_squared)
     return lambda y: math.exp((y-intercept)/slope), lambda x: slope*math.log(x)+intercept, r_squared
@@ -271,15 +273,19 @@ def extract_triplicates(plate:list[float],group:list[Sample], starting_index = 0
         group[index].average = round(statistics.mean(group[index].values), 4)
         group[index].std = round(statistics.stdev(group[index].values),4)
 
-def regression_plot(inv_reg_equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str)->None:
+def regression_plot(inv_reg_equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str, linear:bool = True, logarthimic:bool = False)->None:
     '''Adds a set of data points to the matplotlib graph instance to show later'''
     plt.plot([standard.ab_concentration for standard in standards], [standard.average for standard in standards], "go")
     for standard in standards:
         plt.text(standard.ab_concentration, standard.average, standard.label)
     
-    plt.plot([standard.ab_concentration for standard in standards],[inv_reg_equation(standard.ab_concentration) for standard in standards], label = f"R-squared: {round(r_squared, 3)}")
-    plt.legend(loc = "upper center")
-    
+    if linear:
+        plt.plot([standard.ab_concentration for standard in standards],[inv_reg_equation(standard.ab_concentration) for standard in standards], label = f"R-squared: {round(r_squared, 3)}")
+        plt.legend(loc = "upper center")
+    else:
+        plt.plot([standard.ab_concentration for standard in standards if standard.ab_concentration != 0],[inv_reg_equation(standard.ab_concentration) for standard in standards if standard.ab_concentration != 0], label = f"R-squared: {round(r_squared, 3)}")
+        plt.legend(loc = "upper center")
+        
     
     plt.plot([sample.calculated_ab for sample in samples], [sample.average for sample in samples], "ro")
     for sample in samples:
@@ -343,7 +349,7 @@ def check_and_append(storage:dict[str, Sample], label:str, od:float, sample_type
     if current := storage.get(label,False):
         current.values.append(od)
     else:
-        current = Sample(label, ab_concentration=conc, sample_type=sample_type) if conc else Sample(label)
+        current = Sample(label, ab_concentration=conc, sample_type=sample_type) if conc != None else Sample(label)
         current.values.append(od)
         storage[label] = current
 
