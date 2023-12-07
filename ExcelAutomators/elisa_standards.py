@@ -25,7 +25,7 @@ def main(data_filepath:str, template_filepath:str, destination:str, linear:bool 
     if linear:
         inverse_equation,equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
     else:
-        inverse_equation, equation, r_squared = get_logarithmic_regression_function([standard.ab_concentration for standard in standards[:-2]], [standard.average for standard in standards[:-2]])
+        inverse_equation, equation, r_squared = get_logarithmic_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
     
     for standard in standards: standard.calculated_ab = inverse_equation(standard.average)
     for sample in samples:sample.calculated_ab = inverse_equation(sample.average)
@@ -210,10 +210,11 @@ def get_linear_regression_function(x_values:list[float], y_values:list[float])->
 def get_logarithmic_regression_function(x_values:list[float], y_values:list[float])->tuple[Callable[[float], float], Callable[[float], float], float]:
     '''Returns the inverse logarithmic regression function, logarithmic regression function and R-squared value that are derived from standards, 
     the inverse logarithmic function is used to calculate the concentration of AB relative to the OD values of the standards'''
+  
     ln_x_values = [math.log(x) for x in x_values if x != 0]
     filtered_y_values = [y for y,x in zip(y_values, x_values) if x != 0]
     slope, intercept = statistics.linear_regression(ln_x_values, filtered_y_values)
-    r_squared = statistics.correlation(ln_x_values, y_values)
+    r_squared = statistics.correlation(ln_x_values, filtered_y_values)
     print("The slope of the logarithmic regression line is: ", slope, "\nThe intercept is: ", intercept, "\nThe R-squared value is: ", r_squared)
     return lambda y: math.exp((y-intercept)/slope), lambda x: slope*math.log(x)+intercept, r_squared
     
