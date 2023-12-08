@@ -1,6 +1,5 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFileDialog, QPushButton, QLineEdit, QRadioButton, QComboBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFileDialog, QPushButton, QRadioButton, QCheckBox
 from PyQt5.QtGui import QFont, QPixmap
-from Classes.DilutionComboBox import DilutionComboBox
 from Classes.ErrorMessageBox import ErrorMessageBox
 import ExcelAutomators.elisa_standards as es
 from settings import *
@@ -29,6 +28,9 @@ class ElisaStandardsPage(QWidget):
         
         self.log_reg = QRadioButton("Logarithmic Regression", self)
         self.vertical_layout.addWidget(self.log_reg)
+        
+        self.make_excel = QCheckBox("Make Excel File?", self)
+        self.vertical_layout.addWidget(self.make_excel)
         
         self.select_file_button = QPushButton('Select Raw Data File')
         self.vertical_layout.addWidget(self.select_file_button)
@@ -69,5 +71,5 @@ class ElisaStandardsPage(QWidget):
             ErrorMessageBox("No Destination Selected")
             return
 
-        es.main(self.data_filepath, self.template_filepath, self.destination_filepath, linear= self.linear_reg.isChecked(), logarthimic= self.log_reg.isChecked())
+        es.main(self.data_filepath, self.template_filepath, self.destination_filepath, linear= self.linear_reg.isChecked(), logarthimic= self.log_reg.isChecked(), make_excel = self.make_excel.isChecked())
        

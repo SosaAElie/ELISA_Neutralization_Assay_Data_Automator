@@ -7,7 +7,7 @@ import os
 import matplotlib.pyplot as plt
 
 
-def main(data_filepath:str, template_filepath:str, destination:str, linear:bool = True, logarthimic:bool = False)->None:
+def main(data_filepath:str, template_filepath:str, destination:str, linear:bool = True, logarthimic:bool = False, make_excel:bool = False)->None:
     
     '''User selects whether the samples were run in duplicates or triplicates. The average of the replicates of the samples, standards and any controls are calculated, using
         linear regression the concentration of the samples is determined from the slope of the linear regression calculated from the standards.
@@ -16,7 +16,13 @@ def main(data_filepath:str, template_filepath:str, destination:str, linear:bool 
     '''
    
     ewrapper = ExcelWrapper(data_filepath)
-    new_dest = '/'.join([destination,data_filepath.replace(".txt", ".xlsx").split('/')[-1]])
+    regression = ""
+    if linear:
+        regression = "-Linear-"
+    elif logarthimic:
+        regression = "-Logarthimic-"
+    
+    new_dest = '/'.join([destination,data_filepath.replace(".txt", f"{regression}.xlsx").split('/')[-1]])
     
     plate = ewrapper.get_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
     template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
@@ -32,8 +38,9 @@ def main(data_filepath:str, template_filepath:str, destination:str, linear:bool 
     
     write_to_excel(ewrapper, samples, standards, r_squared)
 
-    ewrapper.write_excel(new_dest)
-    os.system(f'start excel "{new_dest}"')
+    if make_excel:
+        ewrapper.write_excel(new_dest)
+        os.system(f'start excel "{new_dest}"')
     regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, linear, logarthimic)
 
 def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None: 
