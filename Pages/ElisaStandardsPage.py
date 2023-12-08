@@ -61,6 +61,7 @@ class ElisaStandardsPage(QWidget):
         self.template_filepath = QFileDialog(filter=".csv").getOpenFileName(self, 'Select File',filter='*.csv')[0]
     
     def process_elisa(self):
+
         if not self.data_filepath: 
             ErrorMessageBox("No Data Selected")
             return

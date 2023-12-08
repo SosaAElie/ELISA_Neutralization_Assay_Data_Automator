@@ -7,7 +7,7 @@ import os
 import matplotlib.pyplot as plt
 
 
-def main(data_filepath:str, template_filepath:str, destination:str, linear:bool = True, logarthimic:bool = False, make_excel:bool = False)->None:
+def main(data_filepath:str, template_filepath:str, destination:str, linear:bool = True, logarthimic:bool = False, make_excel:bool = False, figure_num:int = 1)->None:
     
     '''User selects whether the samples were run in duplicates or triplicates. The average of the replicates of the samples, standards and any controls are calculated, using
         linear regression the concentration of the samples is determined from the slope of the linear regression calculated from the standards.
@@ -41,7 +41,7 @@ def main(data_filepath:str, template_filepath:str, destination:str, linear:bool 
     if make_excel:
         ewrapper.write_excel(new_dest)
         os.system(f'start excel "{new_dest}"')
-    regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, linear, logarthimic)
+    regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, linear, logarthimic, figure_name = new_dest)
 
 def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None: 
     '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''
@@ -281,8 +281,10 @@ def extract_triplicates(plate:list[float],group:list[Sample], starting_index = 0
         group[index].average = round(statistics.mean(group[index].values), 4)
         group[index].std = round(statistics.stdev(group[index].values),4)
 
-def regression_plot(inv_reg_equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str, linear:bool = True, logarthimic:bool = False)->None:
+def regression_plot(inv_reg_equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str, linear:bool = True, logarthimic:bool = False, figure_name:str = "")->None:
     '''Adds a set of data points to the matplotlib graph instance to show later'''
+    print(figure_name)
+    plt.figure(figure_name)
     plt.plot([standard.ab_concentration for standard in standards], [standard.average for standard in standards], "go")
     for standard in standards:
         plt.text(standard.ab_concentration, standard.average, standard.label)
@@ -301,6 +303,7 @@ def regression_plot(inv_reg_equation:Callable[[float], float], standards:list[Sa
     
     plt.xlabel(f"Ab Concentration ({unit})")
     plt.ylabel("Optical Density")
+    plt.draw()
     plt.show()
 
 def process_standards(standard_args:list[str])->tuple[list[str], list[float], str]:
