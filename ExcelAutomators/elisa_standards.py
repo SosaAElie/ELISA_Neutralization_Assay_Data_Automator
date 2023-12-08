@@ -220,8 +220,10 @@ def get_logarithmic_regression_function(x_values:list[float], y_values:list[floa
   
     ln_x_values = [math.log(x) for x in x_values if x != 0]
     filtered_y_values = [y for y,x in zip(y_values, x_values) if x != 0]
+    print(x_values, y_values)
+    print(ln_x_values, filtered_y_values)
     slope, intercept = statistics.linear_regression(ln_x_values, filtered_y_values)
-    r_squared = statistics.correlation(ln_x_values, filtered_y_values)
+    r_squared = statistics.correlation(ln_x_values, filtered_y_values)**2
     print("The slope of the logarithmic regression line is: ", slope, "\nThe intercept is: ", intercept, "\nThe R-squared value is: ", r_squared)
     return lambda y: math.exp((y-intercept)/slope), lambda x: slope*math.log(x)+intercept, r_squared
     
