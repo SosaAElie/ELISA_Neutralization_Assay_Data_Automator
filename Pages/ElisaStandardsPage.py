@@ -79,8 +79,8 @@ class ElisaStandardsPage(QWidget):
             regression_type = "linear"
         elif self.log_reg.isChecked():
             regression_type = "logarthmic"
-        # elif self.fivepl.isChecked():
-        #     regression_type = "5PL"
+        elif self.fivepl.isChecked():
+            regression_type = "5PL"
 
         es.main(self.data_filepath, self.template_filepath, self.destination_filepath,regression_type=regression_type, make_excel = self.make_excel.isChecked())
        
