@@ -5,9 +5,11 @@ import statistics
 import math
 import os
 import matplotlib.pyplot as plt
+import scipy.optimize
 
 
-def main(data_filepath:str, template_filepath:str, destination:str, linear:bool = True, logarthimic:bool = False, make_excel:bool = False, figure_num:int = 1)->None:
+
+def main(data_filepath:str, template_filepath:str, destination:str, regression_type:str = "linear", make_excel:bool = False, figure_num:int = 1)->None:
     
     '''User selects whether the samples were run in duplicates or triplicates. The average of the replicates of the samples, standards and any controls are calculated, using
         linear regression the concentration of the samples is determined from the slope of the linear regression calculated from the standards.
@@ -17,10 +19,12 @@ def main(data_filepath:str, template_filepath:str, destination:str, linear:bool 
    
     ewrapper = ExcelWrapper(data_filepath)
     regression = ""
-    if linear:
+    if regression_type == "linear":
         regression = "-Linear-"
-    elif logarthimic:
+    elif regression_type == "logarthmic":
         regression = "-Logarthimic-"
+    elif regression_type == "5PL":
+        regression = "-5PL-"
     
     new_dest = '/'.join([destination,data_filepath.replace(".txt", f"{regression}.xlsx").split('/')[-1]])
     
@@ -28,10 +32,14 @@ def main(data_filepath:str, template_filepath:str, destination:str, linear:bool 
     template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
     samples, standards, units = merge_plate_template(plate, template)
     
-    if linear:
+    if regression_type == "linear":
         inverse_equation,equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
-    else:
+    elif regression_type == "logarthmic":
         inverse_equation, equation, r_squared = get_logarithmic_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
+    elif regression_type == "5PL":
+        print([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
+        five_pl = get_five_parameter_logistic_curve([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
+        [print(five_pl(x.ab_concentration)) for x in standards if x.sample_type == "standard"]
     
     for standard in standards: standard.calculated_ab = inverse_equation(standard.average)
     for sample in samples:sample.calculated_ab = inverse_equation(sample.average)
@@ -41,7 +49,7 @@ def main(data_filepath:str, template_filepath:str, destination:str, linear:bool 
     if make_excel:
         ewrapper.write_excel(new_dest)
         os.system(f'start excel "{new_dest}"')
-    regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, linear, logarthimic, figure_name = new_dest)
+    regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, regression_type, figure_name = new_dest)
 
 def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None: 
     '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''
@@ -84,127 +92,6 @@ def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[S
     
     return None
 
-def write_duplicates(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None:
-    '''Contains the logic to write the values to an excel file assuming duplicates'''
-    standard_labels = ["Standards"]
-    standard_well1 = ["Well 1 OD"]
-    standard_well2 = ["Well 2 OD"]
-    standard_od_average_std = ["OD Average (OD Std)"]
-    
-    control_labels = ["Controls"]
-    control_well1 = ["Well 1 OD"]
-    control_well2 = ["Well 2 OD"]
-    control_od_average_std = ["OD Average (OD Std)"]
-    control_ab_concentration = ["Calculated AB"]
-    
-    sample_labels = ["Samples"]
-    sample_well1 = ["Well 1 OD"]
-    sample_well2 = ["Well 2 OD"]
-    sample_od_average_std = ["OD Average (OD Std)"]
-    sample_ab_concentration = ["Calculated AB"]
-    
-    standard_labels.extend([standard.label for standard in standards[:-1]])
-    standard_well1.extend([standard.values[0] for standard in standards[:-1]])
-    standard_well2.extend([standard.values[1] for standard in standards[:-1]])
-    standard_od_average_std.extend([f"{standard.average} ({standard.std})" for standard in standards[:-1]])
-    
-    control_labels.extend([control.label for control in standards[-1:]])
-    control_well1.extend([control.values[0] for control in standards[-1:]])
-    control_well2.extend([control.values[1] for control in standards[-1:]])
-    control_od_average_std.extend([f"{control.average} ({control.std})" for control in standards[-1:]])
-    control_ab_concentration.extend([control.ab_concentration for control in standards[-1:]])
-    
-    sample_labels.extend([sample.label for sample in samples])
-    sample_well1.extend([sample.values[0] for sample in samples])
-    sample_well2.extend([sample.values[1] for sample in samples])
-    sample_od_average_std.extend([f"{sample.average} ({sample.std})" for sample in samples])
-    sample_ab_concentration.extend([sample.ab_concentration for sample in samples])
-    
-    
-    
-    ewrapper.add_column("Q", standard_labels)
-    ewrapper.add_column("R", standard_well1)
-    ewrapper.add_column("S", standard_well2)
-    ewrapper.add_column("T", standard_od_average_std)
-    ewrapper.add_column("U", ["R-Squared", r_squared])
-    
-    ewrapper.add_column("W", control_labels)
-    ewrapper.add_column("X", control_well1)
-    ewrapper.add_column("Y", control_well2)
-    ewrapper.add_column("Z", control_od_average_std)
-    ewrapper.add_column("AA", control_ab_concentration)
-    
-    ewrapper.add_column("AC", sample_labels)
-    ewrapper.add_column("AD", sample_well1)
-    ewrapper.add_column("AE", sample_well2)
-    ewrapper.add_column("AF", sample_od_average_std)
-    ewrapper.add_column("AG", sample_ab_concentration)
-
-def write_triplicates(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None:
-    '''Contains the logic to write values to an excel file assuming triplicates'''
-    '''Contains the logic to write the values to an excel file assuming duplicates'''
-    standard_labels = ["Standards"]
-    standard_well1 = ["Well 1 OD"]
-    standard_well2 = ["Well 2 OD"]
-    standard_well3 = ["Well 3 OD"]
-    standard_od_average_std = ["OD Average (OD Std)"]
-    
-    control_labels = ["Controls"]
-    control_well1 = ["Well 1 OD"]
-    control_well2 = ["Well 2 OD"]
-    control_well3 = ["Well 3 OD"]
-    control_od_average_std = ["OD Average (OD Std)"]
-    control_ab_concentration = ["Calculated AB"]
-    
-    sample_labels = ["Samples"]
-    sample_well1 = ["Well 1 OD"]
-    sample_well2 = ["Well 2 OD"]
-    sample_well3 = ["Well 3 OD"]
-    sample_od_average_std = ["OD Average (OD Std)"]
-    sample_ab_concentration = ["Calculated AB"]
-    
-    standard_labels.extend([standard.label for standard in standards[:-2]])
-    standard_well1.extend([standard.values[0] for standard in standards[:-2]])
-    standard_well2.extend([standard.values[1] for standard in standards[:-2]])
-    standard_well3.extend([standard.values[2] for standard in standards[:-2]])
-    standard_od_average_std.extend([f"{standard.average} ({standard.std})" for standard in standards[:-2]])
-    
-    control_labels.extend([control.label for control in standards[-2:]])
-    control_well1.extend([control.values[0] for control in standards[-2:]])
-    control_well2.extend([control.values[1] for control in standards[-2:]])
-    control_well3.extend([control.values[2] for control in standards[-2:]])
-    control_od_average_std.extend([f"{control.average} ({control.std})" for control in standards[-2:]])
-    control_ab_concentration.extend([control.ab_concentration for control in standards[-2:]])
-    
-    sample_labels.extend([sample.label for sample in samples])
-    sample_well1.extend([sample.values[0] for sample in samples])
-    sample_well2.extend([sample.values[1] for sample in samples])
-    sample_well3.extend([sample.values[2] for sample in samples])
-    sample_od_average_std.extend([f"{sample.average} ({sample.std})" for sample in samples])
-    sample_ab_concentration.extend([sample.ab_concentration for sample in samples])
-    
-    
-    ewrapper.add_column("Q", standard_labels)
-    ewrapper.add_column("R", standard_well1)
-    ewrapper.add_column("S", standard_well2)
-    ewrapper.add_column("T", standard_well3)
-    ewrapper.add_column("U", standard_od_average_std)
-    ewrapper.add_column("V", ["R-Squared", r_squared])
-    
-    ewrapper.add_column("X", control_labels)
-    ewrapper.add_column("Y", control_well1)
-    ewrapper.add_column("Z", control_well2)
-    ewrapper.add_column("AA", control_well3)
-    ewrapper.add_column("AB", control_od_average_std)
-    ewrapper.add_column("AC", control_ab_concentration)
-    
-    ewrapper.add_column("AE", sample_labels)
-    ewrapper.add_column("AF", sample_well1)
-    ewrapper.add_column("AG", sample_well2)
-    ewrapper.add_column("AH", sample_well3)
-    ewrapper.add_column("AI", sample_od_average_std)
-    ewrapper.add_column("AJ", sample_ab_concentration)
-
 def get_linear_regression_function(x_values:list[float], y_values:list[float])->tuple[Callable[[float], float], Callable[[float], float], float]:
     '''Returns the inverse linear regression function, linear regression function and R-squared value that are derived from standards, 
     the inverse linear function is used to calculate the concentration of AB relative to the OD values of the standards'''
@@ -226,7 +113,24 @@ def get_logarithmic_regression_function(x_values:list[float], y_values:list[floa
     r_squared = statistics.correlation(ln_x_values, filtered_y_values)**2
     print("The slope of the logarithmic regression line is: ", slope, "\nThe intercept is: ", intercept, "\nThe R-squared value is: ", r_squared)
     return lambda y: math.exp((y-intercept)/slope), lambda x: slope*math.log(x)+intercept, r_squared
-    
+
+def get_five_parameter_logistic_curve(x_values:list[float], y_values:list[float])->tuple[Callable[[float], float], Callable[[float], float]]:
+    '''Returns the inverse 5 parameter logistic curve function and 5 parameter logistic curve function that are derived from standards, 
+    the inverse function is used to calculate the concentration of AB relative to the OD values of the standards'''
+
+    a = min(y_values) #The lower asymptote
+    d = max(y_values) #The upper asymptote
+    c = max(x_values)/2 #Inflection point, the concentration at which y = (D-A)/2
+    b = (d-a)/(max(x_values)-min(x_values)) #Slope at the inflection point
+    e = 1 #Asymmetry factor, assumes the sigmodial curve is symmetrical indicated by the value 1
+    five_pl = lambda x, a, b,c,d,e:d + ((a-d)/(pow((1 + pow((x / c), b)), e)))
+    residuals = lambda params, x, y: y - five_pl(x, *params)
+    result = scipy.optimize.least_squares(fun = residuals, x0=[a,b,c,d,e],args=(y_values, x_values))
+
+    A,B,C,D,E = result.x
+    print(result.x)
+    return lambda x:  + ((A-D)/(pow((1 + pow((x / C), B)), E)))
+
 def determine_standards(starting_conc:str, suffix:str, dilution_factor:str, dilutions:str = "6")->tuple[list[str], list[float], str]:
     '''Returns a list of strings containing the labels used for the standards based of the starting concentration and the dilution factor, assumes the starting
         concentration is diluted 6 times.
@@ -244,59 +148,22 @@ def determine_standards(starting_conc:str, suffix:str, dilution_factor:str, dilu
         concentrations.append(prv)
     return (labels, concentrations, suffix)
 
-def extract_duplicates(plate:list[float],group:list[Sample], starting_index = 0)->None:
-    '''Modifies the list of Samples and appends the number of associated values, i.e assumes each sample is run in duplicates and 8 samples per column,
-        The starting index refers to the point at which the values from the plate should be extracted
-    '''
-    ROWS_PER_COL = 8
-    AMOUNT_OF_COLUMNS_TO_SKIP_OVER = 1
-    count = 0
-    for index in range(len(group)):
-        if index%ROWS_PER_COL == 0 and index != 0: count+=1
-        first = index if count < 1 else index + ROWS_PER_COL*count*AMOUNT_OF_COLUMNS_TO_SKIP_OVER
-        second = first+ROWS_PER_COL
-        od1 = float(plate[first+starting_index])
-        od2 = float(plate[second+starting_index])
-        group[index].values.append(od1 if od1 >= 0 else 0)
-        group[index].values.append(od2 if od2 >= 0 else 0)
-        group[index].average = round(statistics.mean(group[index].values), 4) 
-        group[index].std = round(statistics.stdev(group[index].values), 4)
-        
-def extract_triplicates(plate:list[float],group:list[Sample], starting_index = 0)->None:
-    '''Modifies the list of Samples and appends the number of associated values, i.e assumes each sample is run in duplicates and 8 samples per column,
-        The starting index refers to the point at which the values from the plate should be extracted
-    '''
-    ROWS_PER_COL = 8
-    AMOUNT_OF_COLUMNS_TO_SKIP_OVER = 2
-    count = 0
-    for index in range(len(group)):
-        if index%ROWS_PER_COL == 0 and index != 0: count+=1
-        first = index if count < 1 else index + ROWS_PER_COL*count*AMOUNT_OF_COLUMNS_TO_SKIP_OVER
-        second = first+ROWS_PER_COL
-        third = second+ROWS_PER_COL
-        od1 = float(plate[first+starting_index])
-        od2 = float(plate[second+starting_index])
-        od3 = float(plate[third+starting_index])
-        group[index].values.append(od1)
-        group[index].values.append(od2)
-        group[index].values.append(od3)
-        group[index].average = round(statistics.mean(group[index].values), 4)
-        group[index].std = round(statistics.stdev(group[index].values),4)
-
-def regression_plot(inv_reg_equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str, linear:bool = True, logarthimic:bool = False, figure_name:str = "")->None:
+def regression_plot(inv_reg_equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str, regression_type:str = "linear", figure_name:str = "")->None:
     '''Adds a set of data points to the matplotlib graph instance to show later'''
-    print(figure_name)
+    
     plt.figure(figure_name)
     plt.plot([standard.ab_concentration for standard in standards], [standard.average for standard in standards], "go")
     for standard in standards:
         plt.text(standard.ab_concentration, standard.average, standard.label)
     
-    if linear:
+    if regression_type == "linear":
         plt.plot([standard.ab_concentration for standard in standards],[inv_reg_equation(standard.ab_concentration) for standard in standards], label = f"R-squared: {round(r_squared, 3)}")
         plt.legend(loc = "upper center")
-    else:
+    elif regression_type == "logarthmic":
         plt.plot([standard.ab_concentration for standard in standards if standard.ab_concentration != 0],[inv_reg_equation(standard.ab_concentration) for standard in standards if standard.ab_concentration != 0], label = f"R-squared: {round(r_squared, 3)}")
         plt.legend(loc = "upper center")
+    elif regression_type == "5PL":
+        pass
         
     
     plt.plot([sample.calculated_ab for sample in samples], [sample.average for sample in samples], "ro")

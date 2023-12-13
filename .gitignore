@@ -4,3 +4,4 @@ Include
 Lib
 share/man/man1/ttx.1
 pyvenv.cfg
+bin

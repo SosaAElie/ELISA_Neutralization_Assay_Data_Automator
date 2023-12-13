@@ -28,6 +28,9 @@ class ElisaStandardsPage(QWidget):
         
         self.log_reg = QRadioButton("Logarithmic Regression", self)
         self.vertical_layout.addWidget(self.log_reg)
+
+        self.fivepl = QRadioButton("5PL Regression", self)
+        self.vertical_layout.addWidget(self.fivepl)
         
         self.make_excel = QCheckBox("Make Excel File?", self)
         self.vertical_layout.addWidget(self.make_excel)
@@ -72,5 +75,12 @@ class ElisaStandardsPage(QWidget):
             ErrorMessageBox("No Destination Selected")
             return
 
-        es.main(self.data_filepath, self.template_filepath, self.destination_filepath, linear= self.linear_reg.isChecked(), logarthimic= self.log_reg.isChecked(), make_excel = self.make_excel.isChecked())
+        if self.linear_reg.isChecked():
+            regression_type = "linear"
+        elif self.log_reg.isChecked():
+            regression_type = "logarthmic"
+        # elif self.fivepl.isChecked():
+        #     regression_type = "5PL"
+
+        es.main(self.data_filepath, self.template_filepath, self.destination_filepath,regression_type=regression_type, make_excel = self.make_excel.isChecked())
        
