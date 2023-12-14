@@ -161,6 +161,7 @@ def regression_plot(equation:Callable[[float], float], standards:list[Sample], s
     filler = np.linspace(0, 5, 100)
 
     plt.figure(figure_name)
+    plt.ylim(top = 2)
     plt.plot([standard.ab_concentration for standard in standards], [standard.average for standard in standards], "go")
     for standard in standards:plt.text(standard.ab_concentration, standard.average, standard.label)
     
@@ -209,7 +210,7 @@ def merge_plate_template(plate:list[str], template:list[str])->tuple[list[Sample
     labels = remove_prefixes(template)
 
     for prefix, label, od in zip(prefixes, labels, plate):
-        od = float(od) if float(od) >= 0 else 0
+        od = float(od) #if float(od) >= 0 else 0 -> Need to ask HuiTing whether or not convert negative OD values into 0
         if prefix == STANDARD:
             conc = float(remove_unit(label))
             units = get_unit(label)
