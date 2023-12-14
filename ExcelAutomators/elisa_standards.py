@@ -38,20 +38,24 @@ def main(data_filepath:str, template_filepath:str, destination:str, regression_t
     elif regression_type == "logarthmic":
         inverse_equation, equation, r_squared = get_logarithmic_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
     elif regression_type == "5PL":
-        # five_pl_equation = get_five_parameter_logistic_curve([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
-       pass
-    get_five_parameter_logistic_curve([156.25,78.13,39.06,19.53,9.7,4.8,0],[1.586033333,0.9029333333,0.5281,0.2722333333,0.1810333333,0.1235,0.08873333333])
+        inverse_equation, equation, r_squared  = get_five_parameter_logistic_curve([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
+       
+    # get_five_parameter_logistic_curve([156.25,78.13,39.06,19.53,9.7,4.8,0],[1.586033333,0.9029333333,0.5281,0.2722333333,0.1810333333,0.1235,0.08873333333])
     
-    # for standard in standards: standard.calculated_ab = inverse_equation(standard.average)
-    # for sample in samples:sample.calculated_ab = inverse_equation(sample.average)
+    for standard in standards: 
+        standard.calculated_ab = inverse_equation(standard.average)
+        print(standard.calculated_ab)
+    for sample in samples:
+        sample.calculated_ab = inverse_equation(sample.average)
+        print(sample.calculated_ab)
     
-    # write_to_excel(ewrapper, samples, standards, r_squared)
+    write_to_excel(ewrapper, samples, standards, r_squared)
 
-    # if make_excel:
-    #     ewrapper.write_excel(new_dest)
-    #     os.system(f'start excel "{new_dest}"')
-    # print(new_dest)
-    # regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, regression_type, figure_name = new_dest.split("/")[-1])
+    if make_excel:
+        ewrapper.write_excel(new_dest)
+        os.system(f'start excel "{new_dest}"')
+    
+    regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, regression_type, figure_name = new_dest.split("/")[-1])
 
 def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None: 
     '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''
@@ -120,18 +124,18 @@ def get_five_parameter_logistic_curve(x_values:list[float], y_values:list[float]
     '''Returns the inverse 5 parameter logistic curve function and 5 parameter logistic curve function that are derived from standards, 
     the inverse function is used to calculate the concentration of AB relative to the OD values of the standards'''
 
-    # A = min(y_values) #The lower asymptote -> Assumes that the lowest measured y value is the lowest asymptote
-    # B = max(y_values) #The upper asymptote -> Assumes that the highest measured y value is the lowest asymptote
-    # C = max(x_values)/2 #Inflection point -> Assumes that the inflection point is the middle value of the measured concentrations
-    # D = (B-A)/(max(x_values)-min(x_values)) #Slope at the inflection point
-    # E = 1 #Asymmetry factor, assumes the sigmodial curve is symmetrical indicated by the value 1
+    A = min(y_values) #The lower asymptote -> Assumes that the lowest measured y value is the lowest asymptote
+    B = max(y_values) #The upper asymptote -> Assumes that the highest measured y value is the lowest asymptote
+    C = max(x_values)/2 #Inflection point -> Assumes that the inflection point is the middle value of the measured concentrations
+    D = (B-A)/(max(x_values)-min(x_values)) #Slope at the inflection point
+    E = 1 #Asymmetry factor, assumes the sigmodial curve is symmetrical indicated by the value 1
     
     five_pl = lambda x, a,b,c,d,e: d + (a - d) / ((1 + (x / c) ** b) ** e)
     
-    optimal_params, _ = scipy.optimize.curve_fit(f = five_pl, xdata=x_values, ydata=y_values, maxfev=10000)
+    
+    optimal_params, _ = scipy.optimize.curve_fit(f = five_pl, xdata=x_values, ydata=y_values, maxfev=10000, p0=[A,B,C,D,E])
     A,B,C,D,E = optimal_params
-    math.log()
-    return lambda x: D + (A - D) / ((1 + (x / C) ** B) ** E), lambda y: C *(A-D)
+    return  lambda y: C * ((B - A) / (y - A))**(1/D) * math.exp(E * ((y - A)/(B - A))**(1/D)) - C, lambda x: D + (A - D) / ((1 + (x / C) ** B) ** E), 1
 
 def determine_standards(starting_conc:str, suffix:str, dilution_factor:str, dilutions:str = "6")->tuple[list[str], list[float], str]:
     '''Returns a list of strings containing the labels used for the standards based of the starting concentration and the dilution factor, assumes the starting
@@ -150,27 +154,30 @@ def determine_standards(starting_conc:str, suffix:str, dilution_factor:str, dilu
         concentrations.append(prv)
     return (labels, concentrations, suffix)
 
-def regression_plot(inv_reg_equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str, regression_type:str = "linear", figure_name:str = "")->None:
+def regression_plot(equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str, regression_type:str = "linear", figure_name:str = "")->None:
     '''Adds a set of data points to the matplotlib graph instance to show later'''
     
+    #Create a large set of x_values between the max and the min of the standards to give the appearance of a smooth line
+    filler = np.linspace(0, 5, 100)
+
     plt.figure(figure_name)
     plt.plot([standard.ab_concentration for standard in standards], [standard.average for standard in standards], "go")
-    for standard in standards:
-        plt.text(standard.ab_concentration, standard.average, standard.label)
+    for standard in standards:plt.text(standard.ab_concentration, standard.average, standard.label)
     
-    # if regression_type == "linear":
-    #     plt.plot([standard.ab_concentration for standard in standards],[inv_reg_equation(standard.ab_concentration) for standard in standards], label = f"R-squared: {round(r_squared, 3)}")
-    #     plt.legend(loc = "upper center")
-    # elif regression_type == "logarthmic":
-    #     plt.plot([standard.ab_concentration for standard in standards if standard.ab_concentration != 0],[inv_reg_equation(standard.ab_concentration) for standard in standards if standard.ab_concentration != 0], label = f"R-squared: {round(r_squared, 3)}")
-    #     plt.legend(loc = "upper center")
-    # elif regression_type == "5PL":
-    #     pass
+    if regression_type == "linear":
+        plt.plot([standard.ab_concentration for standard in standards],[equation(standard.ab_concentration) for standard in standards], label = f"R-squared: {round(r_squared, 3)}")
+        plt.legend(loc = "upper center")
+    elif regression_type == "logarthmic":
+        plt.plot([x for x in filler if x > 0], [equation(x) for x in filler if x > 0], label = f"R-squared: {round(r_squared, 3)}")
+        plt.legend(loc = "upper center")
+    elif regression_type == "5PL":
+        plt.plot(filler, [equation(x) for x in filler], label = "5PL")
+        plt.legend(loc = "upper center")
         
     
-    # plt.plot([sample.calculated_ab for sample in samples], [sample.average for sample in samples], "ro")
-    # for sample in samples:
-    #     plt.text(sample.calculated_ab, sample.average, sample.label)
+    plt.plot([sample.calculated_ab for sample in samples], [sample.average for sample in samples], "ro")
+    for sample in samples: plt.text(sample.calculated_ab, sample.average, sample.label)
+
     plt.title(figure_name)
     plt.xlabel(f"Ab Concentration ({unit})")
     plt.ylabel("Optical Density")
