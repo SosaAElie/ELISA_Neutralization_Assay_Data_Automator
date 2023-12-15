@@ -133,24 +133,24 @@ def get_five_parameter_logistic_curve(x_values:list[float], y_values:list[float]
     '''Returns the inverse 5 parameter logistic curve function and 5 parameter logistic curve function that are derived from standards, 
     the inverse function is used to calculate the concentration of AB relative to the OD values of the standards'''
 
-    A = 0.1 #The lower asymptote -> Assumes that the lowest measured y value is the lowest asymptote
-    B = max(y_values) #The upper asymptote -> Assumes that the highest measured y value is the lowest asymptote
-    C = max(x_values)/2 #Inflection point -> Assumes that the inflection point is the middle value of the measured concentrations
-    D = (B-A)/(max(x_values)-min(x_values)) #Slope at the inflection point
-    E = 1 #Asymmetry factor, assumes the sigmodial curve is symmetrical indicated by the value 1
+    # A = 0.1 #The lower asymptote -> Assumes that the lowest measured y value is the lowest asymptote
+    # B = max(y_values) #The upper asymptote -> Assumes that the highest measured y value is the lowest asymptote
+    # C = max(x_values)/2 #Inflection point -> Assumes that the inflection point is the middle value of the measured concentrations
+    # D = (B-A)/(max(x_values)-min(x_values)) #Slope at the inflection point
+    # E = 1 #Asymmetry factor, assumes the sigmodial curve is symmetrical indicated by the value 1
     
-    five_pl = lambda x, a,b,c,d,e: d + (a - d) / ((1 + (x / c) ** b) ** e)
+    five_pl = lambda x, a,b,c,d,e: d + (a - d) / ((1 + (x / c) ** b) ** e) 
 
     #print("Initial params: ",A,B,C,D,E)
     #results = scipy.optimize.least_squares(fun=residuals, x0=[A,B,C,D,E], args=(y_values,x_values))
     #print("Least Squares results params: ",results.x)
-    optimal_params, _ = scipy.optimize.curve_fit(f = five_pl, xdata=x_values, ydata=y_values, maxfev=10000, p0=[A,B,C,D,E])
+    optimal_params, _ = scipy.optimize.curve_fit(f = five_pl, xdata=x_values, ydata=y_values, maxfev=100000) #->Including best guess parameters can cause crashes because the best guesses are essentially terrible
     
     A,B,C,D,E = optimal_params
     
     optimized_5_pl = lambda x: D + (A - D) / ((1 + (x / C) ** B) ** E)
     # inverse = lambda y: C*(pow((pow((A-B)/(-B+y), (1/E))-1),1/D))
-    inverse_5_pl = lambda response, starting_estimate: scipy.optimize.fsolve(lambda x: optimized_5_pl(x)-response, starting_estimate, maxfev=10000)[0]
+    inverse_5_pl = lambda response, starting_estimate: scipy.optimize.fsolve(lambda x: optimized_5_pl(x)-response, starting_estimate, maxfev=100000)[0]
     
     return  inverse_5_pl, optimized_5_pl, 1
 
@@ -229,8 +229,7 @@ def merge_plate_template(plate:list[str], template:list[str])->tuple[list[Sample
     labels = remove_prefixes(template)
 
     for prefix, label, od in zip(prefixes, labels, plate):
-        print(od)
-        od = float(od) if float(od) != 0 else 0 #-> Need to ask HuiTing whether or not convert negative OD values into 0
+        od = float(od) #-> Need to ask HuiTing whether or not convert negative OD values into 0
         if prefix == STANDARD:
             conc = float(remove_unit(label))
             units = get_unit(label)
