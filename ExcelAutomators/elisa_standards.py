@@ -47,17 +47,16 @@ def main(data_filepath:str, template_filepath:str, destination:str, regression_t
                 diff.append(abs(sample.average - standard.average))
         
         sample.closest_conc = standards[diff.index(min(diff))].ab_concentration
-        print(diff)
-    
-    
-    for standard in standards: 
-        standard.calculated_ab = inverse_equation(standard.average, standard.ab_concentration)
-        # print("Calculated antibody concentration from inverse eq:", standard.calculated_ab,"\n", "Actual antibody concentration: ",standard.ab_concentration)
         
-    for sample in samples:
-        sample.calculated_ab = inverse_equation(sample.average, sample.closest_conc)
-        # print(sample.calculated_ab, sample.average)
-        
+    
+    if regression_type == "5PL":
+        for standard in standards: standard.calculated_ab = inverse_equation(standard.average, standard.ab_concentration)
+            
+        for sample in samples: sample.calculated_ab = inverse_equation(sample.average, sample.closest_conc)
+    else:
+        for standard in standards: standard.calculated_ab = inverse_equation(standard.average)
+            
+        for sample in samples: sample.calculated_ab = inverse_equation(sample.average)
     
     write_to_excel(ewrapper, samples, standards, r_squared)
 
