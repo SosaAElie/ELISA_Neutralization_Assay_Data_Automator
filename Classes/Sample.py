@@ -11,6 +11,7 @@ class Sample:
     ab_concentration:float = 0
     calculated_ab:float = 0
     sample_type:str=""
+    closest_conc:float|int = 0
     
     def get_all_values(self)->list:
         '''Returns a list that contains all the property values
