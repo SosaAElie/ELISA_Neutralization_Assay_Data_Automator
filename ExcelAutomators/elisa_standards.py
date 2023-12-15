@@ -129,7 +129,7 @@ def get_logarithmic_regression_function(x_values:list[float], y_values:list[floa
     print("The slope of the logarithmic regression line is: ", slope, "\nThe intercept is: ", intercept, "\nThe R-squared value is: ", r_squared)
     return lambda y: math.exp((y-intercept)/slope), lambda x: slope*math.log(x)+intercept, r_squared
 
-def get_five_parameter_logistic_curve(x_values:list[float], y_values:list[float])->tuple[Callable[[float], float], Callable[[float], float]]:
+def get_five_parameter_logistic_curve(x_values:list[float], y_values:list[float])->tuple[Callable[[float,float], float], Callable[[float], float]]:
     '''Returns the inverse 5 parameter logistic curve function and 5 parameter logistic curve function that are derived from standards, 
     the inverse function is used to calculate the concentration of AB relative to the OD values of the standards'''
 
@@ -138,18 +138,14 @@ def get_five_parameter_logistic_curve(x_values:list[float], y_values:list[float]
     # C = max(x_values)/2 #Inflection point -> Assumes that the inflection point is the middle value of the measured concentrations
     # D = (B-A)/(max(x_values)-min(x_values)) #Slope at the inflection point
     # E = 1 #Asymmetry factor, assumes the sigmodial curve is symmetrical indicated by the value 1
-    
+    bounds =  (0, [np.inf, np.inf, np.max(x_values), np.inf, np.inf])
     five_pl = lambda x, a,b,c,d,e: d + (a - d) / ((1 + (x / c) ** b) ** e) 
-
-    #print("Initial params: ",A,B,C,D,E)
-    #results = scipy.optimize.least_squares(fun=residuals, x0=[A,B,C,D,E], args=(y_values,x_values))
-    #print("Least Squares results params: ",results.x)
-    optimal_params, _ = scipy.optimize.curve_fit(f = five_pl, xdata=x_values, ydata=y_values, maxfev=100000) #->Including best guess parameters can cause crashes because the best guesses are essentially terrible
+    optimal_params, _ = scipy.optimize.curve_fit(f = five_pl, xdata=x_values, ydata=y_values, maxfev=100000, bounds=bounds) #->Including best guess parameters can cause crashes because the best guesses are essentially terrible
     
     A,B,C,D,E = optimal_params
     
     optimized_5_pl = lambda x: D + (A - D) / ((1 + (x / C) ** B) ** E)
-    # inverse = lambda y: C*(pow((pow((A-B)/(-B+y), (1/E))-1),1/D))
+    
     inverse_5_pl = lambda response, starting_estimate: scipy.optimize.fsolve(lambda x: optimized_5_pl(x)-response, starting_estimate, maxfev=100000)[0]
     
     return  inverse_5_pl, optimized_5_pl, 1
