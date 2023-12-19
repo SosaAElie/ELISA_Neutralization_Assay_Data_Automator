@@ -137,9 +137,9 @@ def get_five_parameter_logistic_curve(x_values:list[float], y_values:list[float]
     # C = max(x_values)/2 #Inflection point -> Assumes that the inflection point is the middle value of the measured concentrations
     # D = (B-A)/(max(x_values)-min(x_values)) #Slope at the inflection point
     # E = 1 #Asymmetry factor, assumes the sigmodial curve is symmetrical indicated by the value 1
-    bounds =  (0, [np.inf, np.inf, np.max(x_values), np.inf, np.inf])
+    bounds =  (0, [np.inf, np.inf, np.max(x_values), np.inf, np.inf]) # -> Including these bounds causes inaccurate regression models to be created
     five_pl = lambda x, a,b,c,d,e: d + (a - d) / ((1 + (x / c) ** b) ** e) 
-    optimal_params, _ = scipy.optimize.curve_fit(f = five_pl, xdata=x_values, ydata=y_values, maxfev=100000, bounds=bounds) #->Including best guess parameters can cause crashes because the best guesses are essentially terrible
+    optimal_params, _ = scipy.optimize.curve_fit(f = five_pl, xdata=x_values, ydata=y_values, maxfev=100000) #->Including best guess parameters can cause crashes because the best guesses are essentially terrible
     
     A,B,C,D,E = optimal_params
     
