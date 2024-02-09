@@ -10,7 +10,7 @@ import numpy as np
 
 
 
-def main(data_filepath:str, template_filepath:str, destination:str, regression_type:str = "linear", make_excel:bool = False, figure_num:int = 1)->None:
+def main(data_filepath:str, template_filepath:str, destination:str, regression_type:str = "linear", make_excel:bool = False, figure_num:int = 1, graph_title:str = "")->None:
     
     '''User selects whether the samples were run in duplicates or triplicates. The average of the replicates of the samples, standards and any controls are calculated, using
         linear regression the concentration of the samples is determined from the slope of the linear regression calculated from the standards.
@@ -64,7 +64,7 @@ def main(data_filepath:str, template_filepath:str, destination:str, regression_t
         ewrapper.write_excel(new_dest)
         os.system(f'start excel "{new_dest}"')
     
-    regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, regression_type, figure_name = new_dest.split("/")[-1])
+    regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, regression_type, figure_name = new_dest.split("/")[-1] if graph_title == "" else graph_title)
 
 def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None: 
     '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''

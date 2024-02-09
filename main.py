@@ -5,7 +5,6 @@ from Pages.ElisaNeutralizationAssayPage import ElisaNeutralizationAssayPage
 from Pages.ElisaStandardsPage import ElisaStandardsPage
 import sys
 
-
 class StackedPage(QStackedWidget):
     def __init__(self):
         super().__init__()
@@ -44,7 +43,6 @@ def dark_theme(app:QApplication)->QApplication:
     app.setPalette(palette)
 
     return app
-       
 	
 if __name__ == '__main__':
     app = dark_theme(QApplication([]))

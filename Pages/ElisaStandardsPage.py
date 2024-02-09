@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFileDialog, QPushButton, QRadioButton, QCheckBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFileDialog, QPushButton, QRadioButton, QCheckBox,QLineEdit
 from PyQt5.QtGui import QFont, QPixmap
 from Classes.ErrorMessageBox import ErrorMessageBox
 import ExcelAutomators.elisa_standards as es
@@ -35,6 +35,10 @@ class ElisaStandardsPage(QWidget):
         self.make_excel = QCheckBox("Make Excel File?", self)
         self.vertical_layout.addWidget(self.make_excel)
         
+        self.graph_title = QLineEdit()
+        self.graph_title.setPlaceholderText("Add an optional name for the graph here")
+        self.vertical_layout.addWidget(self.graph_title)
+        
         self.select_file_button = QPushButton('Select Raw Data File')
         self.vertical_layout.addWidget(self.select_file_button)
         self.select_file_button.clicked.connect(self.select_data_file)
@@ -46,6 +50,8 @@ class ElisaStandardsPage(QWidget):
         self.select_file_destination_button = QPushButton('Select File Destination')
         self.vertical_layout.addWidget(self.select_file_destination_button)
         self.select_file_destination_button.clicked.connect(self.select_destination)
+        
+       
         
         self.process = QPushButton("Process ELISA Data")
         self.vertical_layout.addWidget(self.process)
@@ -82,5 +88,5 @@ class ElisaStandardsPage(QWidget):
         elif self.fivepl.isChecked():
             regression_type = "5PL"
 
-        es.main(self.data_filepath, self.template_filepath, self.destination_filepath,regression_type=regression_type, make_excel = self.make_excel.isChecked())
+        es.main(self.data_filepath, self.template_filepath, self.destination_filepath,regression_type=regression_type, make_excel = self.make_excel.isChecked(), graph_title = self.graph_title.text())
        
