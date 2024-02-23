@@ -1,5 +1,6 @@
 from Classes.ExcelWrapper import ExcelWrapper
 import PrismAutomators.neutralization_assay_prism_automator as npa
+from Classes.Sample import Sample
 import statistics
 import sqlite3
 import os
@@ -45,7 +46,6 @@ def get_mir_serum(half:dict[str, list])->list:
 
 def get_controls(half:dict[str, list])->list:
     return flatten_list([half[key] for index, key in enumerate(half.keys()) if index >= 6])
-
 
 def neutralization_assay_singlets(file:str, destination:str, cohort:str=None, sample_numbers:list[str]= None, mir_controls:list[str]=None)->None:
     '''Analyzes the text file produced from the Optical Plate reader assumptions:
@@ -143,13 +143,105 @@ def neutralization_assay_singlets(file:str, destination:str, cohort:str=None, sa
         "ns":second_half["no_stimulation"],
     })
     
+
+def main(data_filepath:str, template_filepath:str, destination:str, cohort = None)->None:
+    ewrapper = ExcelWrapper(data_filepath)
+    new_dest = '/'.join([destination,data_filepath.replace(".txt", ".xlsx").split('/')[-1]])
+    plates = []
+    plates.append(ewrapper.get_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True))
+    plates.append(ewrapper.get_matrix(top_offset=14, left_offset=3, width=12, height=8, val_only=True))
+    plates.append(ewrapper.get_matrix(top_offset=25, left_offset=3, width=12, height=8, val_only=True))
+    template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
+    samples, controls = merge_plate_template(plates, template)
     
-#The code below is a "unit test" to verify that the script works, need to create mure unit tests in the future
-# neutralization_assay_singlets("test.txt", ['74','75','76','77','78','79',
-#                                            '80','81','82','83','84','85', '86','87','88',
-#                                            '89', '90', '91','92','93','94', '95','96',
-#                                            '97','98', '99','100', '102', '103', '104', '105',
-#                                            '106'
-#                                            ], ["MIR001", "MIR002", "MIR003", "MIR004", "MIR005",
-#                                                "MIR010", "MIR012", "MIR013", "MIR023", 
-#                                                 "MIR024", "MIR025", "MIR026", "MIR028" ])
+    write_to_excel(ewrapper, samples, controls)
+
+    ewrapper.write_excel(new_dest)
+    os.system(f'start excel "{new_dest}"')
+
+def merge_plate_template(plates:list[list[str]], template:list[str])->tuple[list[Sample], list[Sample]]:
+    '''Iterates through each list and creates two lists that contains only unique values from the template list, Sample and Standards.
+    The lists are seperated based on the prefix given to the name of the sample/standard/control, i.e 'Unknown', 'Standards', 'Control'. '''
+    CONTROL = "control"
+    SAMPLE = "sample"
+    
+    ff_plate, ratio_plate, r_plate = plates
+    samples:dict[str, Sample] = {}
+    controls:dict[str, Sample] = {}
+    prefixes = get_prefixes(template)
+    labels = remove_prefixes(template)
+
+    for prefix, label, ff, ratio, r in zip(prefixes, labels, ff_plate, ratio_plate, r_plate):
+        ff = float(ff)
+        r = float(r)
+        ratio = float(ratio)
+        if prefix == CONTROL: check_and_mutate(controls, label,prefix, ff, r, ratio)
+        elif prefix == SAMPLE: check_and_mutate(samples, label,prefix, ff, r, ratio)
+        else: continue
+
+    for sample in samples.values():
+        sample.average = round(statistics.mean(sample.ff_r_ratio), 4)
+        sample.std = round(statistics.stdev(sample.ff_r_ratio),4) if len(sample.ff_r_ratio) > 1 else 0
+
+    for standard in controls.values():
+        standard.average = round(statistics.mean(standard.ff_r_ratio), 4)
+        standard.std = round(statistics.stdev(standard.ff_r_ratio),4) if len(standard.ff_r_ratio) > 1 else 0
+    
+    return list(samples.values()), list(controls.values())
+
+def check_and_mutate(mutable:dict[str, Sample], label:str, sample_type:str, firefly:float|int, renilla:float|int, ratio:float|int)->None:
+    if current := mutable.get(label,False):
+        current.firefly_lum.append(firefly)
+        current.renilla_lum.append(renilla)
+        current.ff_r_ratio.append(ratio)
+    else:
+        current = Sample(label = label, sample_type=sample_type)
+        current.firefly_lum.append(firefly)
+        current.renilla_lum.append(renilla)
+        current.ff_r_ratio.append(ratio)
+        mutable[label] = current
+
+def remove_prefixes(vals:list[str], sep:str = "-")->list[str]:
+    '''Removes the prefix from the rest of the string using the 'seperator' as the barrier between both of them'''
+    return [val.split(sep)[-1] for val in vals]
+
+def get_prefixes(vals:list[str], seperator:str = "-")->list[str]:
+    '''Returns a list of prefixes from the rest of the string using the 'seperator' as the barrier between both of them'''
+    return [val.split(sep=seperator)[0].lower() for val in vals]
+
+def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], controls:list[Sample])->None: 
+    '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''
+    sample_headers = ["Samples"]
+    control_headers = ["Controls"]
+
+    sample_wells = max([len(sample.ff_r_ratio) for sample in samples])
+    control_wells = max([len(control.ff_r_ratio) for control in controls])
+
+    for num in range(1, sample_wells+1):sample_headers.append(f"Well {num}")
+    for num in range(1, control_wells+1):control_headers.append(f"Well {num}")
+    sample_headers.append("Average (std)")
+    control_headers.append("Average (std)")
+
+    sample_data_length = len(sample_headers)
+    standard_data_length = len(control_headers)
+
+    ewrapper.add_row(row=1, data=control_headers, start_col="Q")
+    
+    for row, standard in zip(range(2, len(controls)+2), controls):
+        standard_data = standard.get_neutralization_assay_values()
+
+        if len(standard_data) != standard_data_length:
+            while len(standard_data) != standard_data_length:
+                standard_data.insert(-2, "")
+
+        last_col = ewrapper.add_row(row=row, data=standard_data, start_col="Q")
+
+    ewrapper.add_row(row=1, data=sample_headers, start_col=last_col+3)
+    for row, sample in zip(range(2, len(samples)+2),samples):
+        sample_data = sample.get_neutralization_assay_values()
+        if len(sample_data) != sample_data_length:
+            while len(sample_data) != sample_data_length:
+                sample_data.insert(-2, "")
+        ewrapper.add_row(row=row, data=sample_data, start_col=last_col+3)
+    
+    return None
