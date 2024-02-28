@@ -1,12 +1,18 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFileDialog, QPushButton, QRadioButton, QCheckBox,QLineEdit
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFileDialog, QPushButton
+from PyQt5 import QtCore
 from PyQt5.QtGui import QFont, QPixmap
 from Classes.ErrorMessageBox import ErrorMessageBox
 import ExcelAutomators.elisa_standards as es
+from Classes.FileSelector import FileSelector
 from settings import *
+import asyncio
 
 class ElisaStandardsPage(QWidget):
     def __init__(self,parent):
         super().__init__(parent)
+
+        self.file_selectors:list[FileSelector] = []
+
         self.vertical_layout = QVBoxLayout()
         self.setLayout(self.vertical_layout)
         
@@ -14,79 +20,67 @@ class ElisaStandardsPage(QWidget):
         self.vertical_layout.addWidget(self.switch_pages_button)
         self.switch_pages_button.clicked.connect(lambda:parent.setCurrentIndex(1 if parent.currentIndex() != 1 else 0))
     
-    
-        self.app_description = QLabel('Automates calculation of concentration of set of\nunknowns from a set of standards using Linear Regression')
+        
+        self.app_description = QLabel('Automates calculation of concentration of set of unknowns from a set of standards using chosen regression')
         self.app_description.setFont(QFont('Helvetica', 12))
         self.vertical_layout.addWidget(self.app_description)
         
-        self.logo_label = QLabel(self)
-        self.logo_label.setPixmap(QPixmap('./Images/logo2.png').scaled(600,450))
-        self.vertical_layout.addWidget(self.logo_label)
-        
-        self.linear_reg = QRadioButton("Linear Regression", self)
-        self.vertical_layout.addWidget(self.linear_reg)
-        
-        self.log_reg = QRadioButton("Logarithmic Regression", self)
-        self.vertical_layout.addWidget(self.log_reg)
+        width = round(self.window().width()*1.25)
+        height = round(self.window().height()*1.25)
 
-        self.fivepl = QRadioButton("5PL Regression", self)
-        self.vertical_layout.addWidget(self.fivepl)
+        logo = QLabel(self)
+        logo.setPixmap(QPixmap('./Images/logo2.png').scaled(width, height))
+        self.vertical_layout.addWidget(logo, alignment=QtCore.Qt.AlignCenter)
         
-        self.make_excel = QCheckBox("Make Excel File?", self)
-        self.vertical_layout.addWidget(self.make_excel)
         
-        self.graph_title = QLineEdit()
-        self.graph_title.setPlaceholderText("Add an optional name for the graph here")
-        self.vertical_layout.addWidget(self.graph_title)
+        file_selector = FileSelector(self)
+        self.vertical_layout.addWidget(file_selector)
+        self.file_selectors.append(file_selector)
         
-        self.select_file_button = QPushButton('Select Raw Data File')
-        self.vertical_layout.addWidget(self.select_file_button)
-        self.select_file_button.clicked.connect(self.select_data_file)
+        self.add_button = QPushButton("Add", self, clicked = self.add_file_selectors)
+        self.vertical_layout.addWidget(self.add_button)
 
-        self.select_template_button = QPushButton("Select Template File")
-        self.vertical_layout.addWidget(self.select_template_button)
-        self.select_template_button.clicked.connect(self.select_template_file)
-        
+        self.remove_button = QPushButton("Remove", self, clicked = self.remove_file_selector)
+        self.vertical_layout.addWidget(self.remove_button)
+
+
         self.select_file_destination_button = QPushButton('Select File Destination')
         self.vertical_layout.addWidget(self.select_file_destination_button)
         self.select_file_destination_button.clicked.connect(self.select_destination)
         
        
-        
-        self.process = QPushButton("Process ELISA Data")
+        self.process = QPushButton("Process Data")
         self.vertical_layout.addWidget(self.process)
-        self.process.clicked.connect(self.process_elisa)
-        
-        self.data_filepath = ""
+        self.process.clicked.connect(lambda:asyncio.run(self.process_elisa()))
         self.destination_filepath = ""
-    
-    def select_data_file(self):
-        self.data_filepath = QFileDialog(filter=".txt").getOpenFileName(self, 'Select File',filter='*.txt')[0]
-    
+
     def select_destination(self):
         self.destination_filepath = QFileDialog.getExistingDirectory(self,'Select Directory')
-
-    def select_template_file(self):
-        self.template_filepath = QFileDialog(filter=".csv").getOpenFileName(self, 'Select File',filter='*.csv')[0]
     
-    def process_elisa(self):
+    def add_file_selectors(self)->None:
+        index = self.layout().indexOf(self.file_selectors[-1])+1
+        file_selector = FileSelector(self)
+        self.vertical_layout.insertWidget(index,file_selector)
+        self.file_selectors.append(file_selector)
 
-        if not self.data_filepath: 
-            ErrorMessageBox("No Data Selected")
-            return
-        if not self.template_filepath: 
-            ErrorMessageBox("No Template Selected")
-            return
+    def remove_file_selector(self)->None:
+        if len(self.file_selectors) > 1:
+            self.vertical_layout.removeWidget(self.file_selectors.pop())
+        
+    async def process_elisa(self):
+
         if not self.destination_filepath: 
             ErrorMessageBox("No Destination Selected")
             return
-
-        if self.linear_reg.isChecked():
-            regression_type = "linear"
-        elif self.log_reg.isChecked():
-            regression_type = "logarthmic"
-        elif self.fivepl.isChecked():
-            regression_type = "5PL"
-
-        es.main(self.data_filepath, self.template_filepath, self.destination_filepath,regression_type=regression_type, make_excel = self.make_excel.isChecked(), graph_title = self.graph_title.text())
+        
+        selected_files = [file_selector.get_selection() for file_selector in self.file_selectors]
+        coroutines = []
+        for selected in selected_files:
+            if len(selected) == 0: return
+            else: 
+                raw, template, regression, excel, title = selected
+                coroutines.append(es.main(raw, template, self.destination_filepath, regression, excel,graph_title= title))
+        await asyncio.gather(*coroutines)
+        
+    # es.main(self.data_filepath, self.template_filepath, self.destination_filepath,regression_type=regression_type, make_excel = self.make_excel.isChecked(), graph_title = self.graph_title.text())
        

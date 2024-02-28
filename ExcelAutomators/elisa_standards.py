@@ -10,7 +10,7 @@ import numpy as np
 
 
 
-def main(data_filepath:str, template_filepath:str, destination:str, regression_type:str = "linear", make_excel:bool = False, figure_num:int = 1, graph_title:str = "")->None:
+async def main(data_filepath:str, template_filepath:str, destination:str, regression_type:str = "linear", make_excel:bool = False, figure_num:int = 1, graph_title:str = "")->None:
     
     '''User selects whether the samples were run in duplicates or triplicates. The average of the replicates of the samples, standards and any controls are calculated, using
         linear regression the concentration of the samples is determined from the slope of the linear regression calculated from the standards.
@@ -20,10 +20,10 @@ def main(data_filepath:str, template_filepath:str, destination:str, regression_t
    
     ewrapper = ExcelWrapper(data_filepath)
     regression = ""
-    if regression_type == "linear":
+    if regression_type == "Linear":
         regression = "-Linear-"
-    elif regression_type == "logarthmic":
-        regression = "-Logarthimic-"
+    elif regression_type == "Logarithmic":
+        regression = "-Logarithmic-"
     elif regression_type == "5PL":
         regression = "-5PL-"
     
@@ -33,9 +33,9 @@ def main(data_filepath:str, template_filepath:str, destination:str, regression_t
     template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
     samples, standards, units = merge_plate_template(plate, template)
     
-    if regression_type == "linear":
+    if regression_type == "Linear":
         inverse_equation,equation, r_squared = get_linear_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
-    elif regression_type == "logarthmic":
+    elif regression_type == "Logarithmic":
         inverse_equation, equation, r_squared = get_logarithmic_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
     elif regression_type == "5PL":
         inverse_equation, equation, r_squared  = get_five_parameter_logistic_curve([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
@@ -166,7 +166,7 @@ def determine_standards(starting_conc:str, suffix:str, dilution_factor:str, dilu
         concentrations.append(prv)
     return (labels, concentrations, suffix)
 
-def regression_plot(equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str, regression_type:str = "linear", figure_name:str = "")->None:
+def regression_plot(equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str, regression_type:str = "Linear", figure_name:str = "")->None:
     '''Adds a set of data points to the matplotlib graph instance to show later'''
     
     #Create a large set of x_values between the max and the min of the standards to give the appearance of a smooth line
@@ -179,10 +179,10 @@ def regression_plot(equation:Callable[[float], float], standards:list[Sample], s
     plt.plot([standard.ab_concentration for standard in standards], [standard.average for standard in standards], "go")
     for standard in standards:plt.text(standard.ab_concentration, standard.average, standard.label)
     
-    if regression_type == "linear":
+    if regression_type == "Linear":
         plt.plot([standard.ab_concentration for standard in standards],[equation(standard.ab_concentration) for standard in standards], label = f"R-squared: {round(r_squared, 3)}")
         plt.legend(loc = "upper center")
-    elif regression_type == "logarthmic":
+    elif regression_type == "Logarithmic":
         plt.plot([x for x in filler if x!= 0], [equation(x) for x in filler if x != 0], label = f"R-squared: {round(r_squared, 3)}")
         plt.legend(loc = "upper center")
     elif regression_type == "5PL":
@@ -272,10 +272,3 @@ def remove_unit(val:str)->str:
 def get_unit(val:str)->str:
     '''Assumes the units are 4 characters and are located at the end of the string'''
     return val[-5:]
-
-def get_template(filepath:str)->list[str]:
-    '''Opens the filepath passed in from the frontend for a .csv file that contains a 12 by 8, 96 well plate layout
-        The layout corresponds to the layout of the data, i.e the sample label in the upper left corner matches the
-        optical plate reader data in that corner as well.
-    '''
-    return ExcelWrapper(filepath).get_cell_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)

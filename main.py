@@ -10,10 +10,8 @@ class StackedPage(QStackedWidget):
         super().__init__()
         self.setMinimumSize(400,600)
         self.setWindowTitle('ELISA and Neutralization Assay Automator')
-        self.first = ElisaStandardsPage(self)
-        self.second = ElisaNeutralizationAssayPage(self)
-        self.addWidget(self.first)
-        self.addWidget(self.second)
+        self.addWidget(ElisaStandardsPage(self))
+        self.addWidget(ElisaNeutralizationAssayPage(self))
         self.show()
 
     
