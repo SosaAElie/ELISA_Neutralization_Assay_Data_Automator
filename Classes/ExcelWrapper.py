@@ -1,17 +1,21 @@
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.cell.cell import Cell
+from openpyxl.drawing.image import Image
 import openpyxl
 from typing import Any, Callable
 import csv
-
+import PIL.Image as PILImage
 
 class ExcelWrapper:
 
     def __init__(self, filepath:str):
         '''Takes in a text file and produces and excel file or takes a an excel filepath'''
         if filepath.find(".txt") >= 0:
-            self.wkbk, self.wkst = self.__create_excel(self.__get_data(filepath, "utf-16", "\t"))
+            try:
+                self.wkbk, self.wkst = self.__create_excel(self.__get_data(filepath, "utf-16", "\t"))
+            except UnicodeEncodeError:
+                self.wkbk, self.wkst = self.__create_excel(self.__get_data(filepath, "utf-8", "\t"))
         elif filepath.find(".csv") >= 0:
             self.wkbk, self.wkst = self.__create_excel(self.__get_data(filepath, "utf-8", ","))
         elif filepath.find(".xlsx") >= 0:
@@ -19,6 +23,7 @@ class ExcelWrapper:
             self.wkst = self.wkbk.active
         else:
             raise ValueError
+        
         self.filepath = filepath
 
     def __get_data(self, filepath:str, encoding:str, delimiter:str )->list[list]:
@@ -175,3 +180,10 @@ class ExcelWrapper:
     def write_excel(self, destination:str)->None:
         self.wkbk.save(destination)
         return None
+    
+    def save_image(self,image:PILImage, cell_coord:str)->None:
+        self.wkst.add_image(Image(image), cell_coord)
+        return None
+    
+    def get_last_row(self)->int:
+        return self.wkst.max_row

@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QFileDialog, QPushButt
 from Classes.ErrorMessageBox import ErrorMessageBox
 import pathlib
 import typing
+
 class FileSelector(QWidget):
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
@@ -57,5 +58,4 @@ class FileSelector(QWidget):
         else:
             ErrorMessageBox("Raw Data File or Template File Missing")
             return []
-        
         

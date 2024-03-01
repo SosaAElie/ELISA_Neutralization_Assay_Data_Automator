@@ -7,10 +7,11 @@ import os
 import matplotlib.pyplot as plt
 import scipy.optimize
 import numpy as np
+from PIL import Image
+import io
 
 
-
-async def main(data_filepath:str, template_filepath:str, destination:str, regression_type:str = "linear", make_excel:bool = False, figure_num:int = 1, graph_title:str = "")->None:
+async def main(data_filepath:str, template_filepath:str, destination:str, regression_type:str = "linear", make_excel:bool = False, graph_title:str = "")->None:
     
     '''User selects whether the samples were run in duplicates or triplicates. The average of the replicates of the samples, standards and any controls are calculated, using
         linear regression the concentration of the samples is determined from the slope of the linear regression calculated from the standards.
@@ -58,13 +59,13 @@ async def main(data_filepath:str, template_filepath:str, destination:str, regres
             
         for sample in samples: sample.calculated_ab = inverse_equation(sample.average)
     
-    write_to_excel(ewrapper, samples, standards, r_squared)
-
+    figure = regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, regression_type, figure_name = new_dest.split("/")[-1] if graph_title == "" else graph_title)
+    
     if make_excel:
+        ewrapper.save_image(figure, f"A{ewrapper.get_last_row()}")
+        write_to_excel(ewrapper, samples, standards, r_squared)
         ewrapper.write_excel(new_dest)
         os.system(f'start excel "{new_dest}"')
-    
-    regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, r_squared, units, regression_type, figure_name = new_dest.split("/")[-1] if graph_title == "" else graph_title)
 
 def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], r_squared:float)->None: 
     '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''
@@ -149,24 +150,7 @@ def get_five_parameter_logistic_curve(x_values:list[float], y_values:list[float]
     
     return  inverse_5_pl, optimized_5_pl, 1
 
-def determine_standards(starting_conc:str, suffix:str, dilution_factor:str, dilutions:str = "6")->tuple[list[str], list[float], str]:
-    '''Returns a list of strings containing the labels used for the standards based of the starting concentration and the dilution factor, assumes the starting
-        concentration is diluted 6 times.
-    '''
-    labels = []
-    concentrations = []
-    prv = 0
-    nxt = float(starting_conc)
-    dilution_factor = float(dilution_factor)
-    for _ in range(int(dilutions)):
-        prv = nxt
-        nxt = prv/dilution_factor
-        label = f"{prv}{suffix}"
-        labels.append(label)
-        concentrations.append(prv)
-    return (labels, concentrations, suffix)
-
-def regression_plot(equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str, regression_type:str = "Linear", figure_name:str = "")->None:
+def regression_plot(equation:Callable[[float], float], standards:list[Sample], samples:list[Sample], r_squared:float, unit:str, regression_type:str = "Linear", figure_name:str = "")->Image:
     '''Adds a set of data points to the matplotlib graph instance to show later'''
     
     #Create a large set of x_values between the max and the min of the standards to give the appearance of a smooth line
@@ -175,7 +159,7 @@ def regression_plot(equation:Callable[[float], float], standards:list[Sample], s
     filler = np.linspace(min_ab, max_ab, 100)
 
     plt.figure(figure_name)
-    # plt.ylim(top = 2)
+    plt.xlim((-0.05,max_ab*1.10))
     plt.plot([standard.ab_concentration for standard in standards], [standard.average for standard in standards], "go")
     for standard in standards:plt.text(standard.ab_concentration, standard.average, standard.label)
     
@@ -196,19 +180,12 @@ def regression_plot(equation:Callable[[float], float], standards:list[Sample], s
     plt.title(figure_name)
     plt.xlabel(f"Ab Concentration ({unit})")
     plt.ylabel("Optical Density")
+    figure = io.BytesIO()
+    plt.savefig(figure,format = "jpeg")
     plt.draw()
     plt.show()
-
-def process_standards(standard_args:list[str])->tuple[list[str], list[float], str]:
-    '''Takes in the args passed in by the front end and determines if they came from the
-        InconsistentDilution or ConsistentDilution page and returns a tuple with the concentrations as strings
-        and the concentrations as floats to be used to create instances of the Sample class
-    '''
-    if len(standard_args) == 2:
-        values, unit = standard_args
-        return [f"{value}{unit}" for value in values], [float(value) for value in values], unit
-    elif len(standard_args) == 4:
-        return determine_standards(*standard_args)
+    
+    return Image.open(figure)
 
 def merge_plate_template(plate:list[str], template:list[str])->tuple[list[Sample], list[Sample]]:
     '''Iterates through each list and creates two lists that contains only unique values from the template list, Sample and Standards.

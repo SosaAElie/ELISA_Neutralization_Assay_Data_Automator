@@ -2,9 +2,8 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFileDialog, QPushButt
 from PyQt5 import QtCore
 from PyQt5.QtGui import QFont, QPixmap
 from Classes.ErrorMessageBox import ErrorMessageBox
-import ExcelAutomators.elisa_standards as es
 from Classes.FileSelector import FileSelector
-from settings import *
+import ExcelAutomators.elisa_standards as es
 import asyncio
 
 class ElisaStandardsPage(QWidget):
@@ -21,9 +20,9 @@ class ElisaStandardsPage(QWidget):
         self.switch_pages_button.clicked.connect(lambda:parent.setCurrentIndex(1 if parent.currentIndex() != 1 else 0))
     
         
-        self.app_description = QLabel('Automates calculation of concentration of set of unknowns from a set of standards using chosen regression')
+        self.app_description = QLabel('Interpolates Concentration of Unknowns From a Set of Known Standards')
         self.app_description.setFont(QFont('Helvetica', 12))
-        self.vertical_layout.addWidget(self.app_description)
+        self.vertical_layout.addWidget(self.app_description, alignment=QtCore.Qt.AlignCenter)
         
         width = round(self.window().width()*1.25)
         height = round(self.window().height()*1.25)
@@ -79,8 +78,6 @@ class ElisaStandardsPage(QWidget):
             if len(selected) == 0: return
             else: 
                 raw, template, regression, excel, title = selected
-                coroutines.append(es.main(raw, template, self.destination_filepath, regression, excel,graph_title= title))
+                coroutines.append(es.main(raw, template, self.destination_filepath, regression, excel, title))
         await asyncio.gather(*coroutines)
-        
-    # es.main(self.data_filepath, self.template_filepath, self.destination_filepath,regression_type=regression_type, make_excel = self.make_excel.isChecked(), graph_title = self.graph_title.text())
        
