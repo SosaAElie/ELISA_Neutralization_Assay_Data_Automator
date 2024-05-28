@@ -5,6 +5,7 @@ import statistics
 import math
 import os
 import matplotlib.pyplot as plt
+import matplotlib.axes as ax
 import scipy.optimize
 import numpy as np
 from PIL import Image
@@ -175,9 +176,7 @@ def regression_plot(equation:Callable[[float], float], standards:list[Sample], s
     filler = np.linspace(min_ab, max_ab, 100)
 
     plt.figure(figure_name)
-    
-    
-    plt.xlim((-0.05,max_ab*1.10))
+    # plt.xlim((0,math.log(max_ab*1.10)))
     plt.plot([standard.ab_concentration for standard in standards], [standard.average for standard in standards], "go")
     for standard in standards:plt.text(standard.ab_concentration, standard.average, standard.label)
     
@@ -200,13 +199,16 @@ def regression_plot(equation:Callable[[float], float], standards:list[Sample], s
         ''')
         plt.legend(loc = "upper left")
         
-   
-    plt.plot([sample.calculated_ab for sample in samples], [sample.average for sample in samples], "ro")
+    
+    plt.plot([sample.calculated_ab for sample in samples if sample.calculated_ab <= max_ab], [sample.average for sample in samples if sample.calculated_ab <= max_ab], "ro")
     for sample in samples: plt.text(sample.calculated_ab, sample.average, sample.label) 
-        
+
     plt.title(figure_name)
     plt.xlabel(f"Ab Concentration ({unit})")
     plt.ylabel("Optical Density")
+    plt.xscale("log")
+    figure = io.BytesIO()
+    plt.savefig(figure,format = "jpeg")
     plt.draw()
     plt.show()
     
