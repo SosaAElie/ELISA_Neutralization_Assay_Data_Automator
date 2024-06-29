@@ -15,7 +15,13 @@ class ElisaStandardsPage(QWidget):
         self.vertical_layout = QVBoxLayout()
         self.setLayout(self.vertical_layout)
 
-        self.app_description = QLabel('Interpolates Concentration of Unknowns From a Set of Known Standards')
+        self.app_description = QLabel('''
+        Python Software designed to interpolate the concentration of unknowns from a set of standards present on the plate.\n\n
+                                                    Current Limitations\n
+            1) Only processes data from the SoftMax Pro Optical Plate reader, accepts txt files in "plate" exported format\n
+            2) Only accepts 96 well plate csv template 
+                                    ''')
+        
         self.app_description.setFont(QFont('Helvetica', 12))
         self.vertical_layout.addWidget(self.app_description, alignment=QtCore.Qt.AlignCenter)    
         

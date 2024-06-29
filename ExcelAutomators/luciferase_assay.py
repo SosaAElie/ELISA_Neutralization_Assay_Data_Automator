@@ -15,4 +15,4 @@ import io
 def main(*args)->None:
     
     wkbk = ExcelWrapper(args[0])
-    wkbk.write_excel("./test.xlsx")
+    wkbk.write_excel("Tests/20240612 Luciferase Assays EAS.txt")
