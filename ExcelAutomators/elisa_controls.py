@@ -111,7 +111,7 @@ def group_mean(group:list[Sample])->float|int:
     '''Returns the mean of the Sample.average of a list of Samples'''
     return statistics.mean([sample.average for sample in group])
          
-def main(filepath:str, destination:str, samples:list[int], controls:list[int], sample_col:int = 1, control_col:int = 8):
+def old_main(filepath:str, destination:str, samples:list[int], controls:list[int], sample_col:int = 1, control_col:int = 8):
     '''Analyzes ELISA text file data from optical density machine, assumes the samples always start at column 1 and the controls always start at column 8'''
     print(samples, controls)
     samples  = [Sample(sample) for sample in samples]
@@ -119,3 +119,9 @@ def main(filepath:str, destination:str, samples:list[int], controls:list[int], s
     new_file, data = analyze_data(filepath, destination, samples,controls)
     epa.main(data, new_file)
     os.system(f'start excel "{new_file}"')
+
+def main(data_filepath:str, template_filepath:str, destination_filepath:str)->None:
+    '''Takes in the template and the raw txt exported by the SoftMax Pro software and determines positivity as the average OD
+        of the controls + 3 stdev of the OD of the controls
+    '''
+    

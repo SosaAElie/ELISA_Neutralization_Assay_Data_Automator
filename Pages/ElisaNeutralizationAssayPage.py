@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFileDialog, QPushButt
 from PyQt5.QtGui import QFont, QPixmap
 from Classes.ErrorMessageBox import ErrorMessageBox
 from settings import *
-import ExcelAutomators.elisa_main as em
+import ExcelAutomators.elisa_controls as em
 import ExcelAutomators.neutralization_assay_main as nam
 import sqlite3
 

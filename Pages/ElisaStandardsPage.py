@@ -4,6 +4,7 @@ from PyQt5.QtGui import QFont
 from Classes.ErrorMessageBox import ErrorMessageBox
 from Classes.FileSelector import FileSelector
 import ExcelAutomators.elisa_standards as es
+import ExcelAutomators.elisa_controls as ec
 import asyncio
 
 class ElisaStandardsPage(QWidget):
@@ -70,9 +71,12 @@ class ElisaStandardsPage(QWidget):
         selected_files = [file_selector.get_selection() for file_selector in self.file_selectors]
         coroutines = []
         for selected in selected_files:
-            if len(selected) == 0: return
+            if len(selected) == 0: return            
             else: 
-                raw, template, regression, excel, title = selected
-                coroutines.append(es.main(raw, template, self.destination_filepath, regression, excel, title))
+                if len(selected) > 2: 
+                    raw, template, regression, excel, title = selected
+                    coroutines.append(es.main(raw, template, self.destination_filepath, regression, excel, title))
+                else:
+                    coroutines.append(ec.main(raw,template, self.destination_filepath))
         await asyncio.gather(*coroutines)
        
