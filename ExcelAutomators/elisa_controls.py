@@ -134,6 +134,7 @@ async def main(data_filepath:str, template_filepath:str, destination_filepath:st
     plate = ewrapper.get_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
     template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
     samples, controls = merge(plate, template)
+    if len(controls) < 1: return None
     cutoff = round(calculate_cutoff(controls),3)
     add_to_excel(controls, samples, cutoff, ewrapper)
     graph_image = scatter_graph(controls, samples, cutoff, Path(data_filepath).stem)
