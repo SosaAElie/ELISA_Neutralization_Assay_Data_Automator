@@ -35,6 +35,8 @@ async def main(data_filepath:str, template_filepath:str, destination:str, regres
     template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
     samples, standards, units = merge_plate_template(plate, template)
     
+    if len([standard for standard in standards if standard.sample_type == "standard"]) == 0: return None
+
     if regression_type == "Linear":
         inverse_equation,equation, extra_info = get_linear_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
     elif regression_type == "Logarithmic":
@@ -65,8 +67,10 @@ async def main(data_filepath:str, template_filepath:str, destination:str, regres
     if make_excel:
         ewrapper.save_image(figure, f"A{ewrapper.get_last_row()}")
         write_to_excel(ewrapper, samples, standards, extra_info=extra_info)
-        ewrapper.write_excel(new_dest)
+        ewrapper.save_as_excel(new_dest)
         os.system(f'start excel "{new_dest}"')
+    
+    return None
 
 def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], extra_info:list[float]|float = None)->None: 
     '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''
@@ -217,7 +221,7 @@ def regression_plot(equation:Callable[[float], float], standards:list[Sample], s
     plt.savefig(figure_bytes,format = "jpeg")
     return Image.open(figure_bytes)
 
-def merge_plate_template(plate:list[str], template:list[str])->tuple[list[Sample], list[Sample]]:
+def merge_plate_template(plate:list[str], template:list[str])->tuple[list[Sample], list[Sample], str]:
     '''Iterates through each list and creates two lists that contains only unique values from the template list, Sample and Standards.
     The lists are seperated based on the prefix given to the name of the sample/standard/control, i.e 'Unknown', 'Standards', 'Control'. '''
     STANDARD = "standard"
@@ -253,7 +257,7 @@ def merge_plate_template(plate:list[str], template:list[str])->tuple[list[Sample
         standard.average = round(statistics.mean(standard.values), 4)
         standard.std = round(statistics.stdev(standard.values),4) if len(standard.values) > 1 else 0
         s2.append(standard)
-
+    
     return s, s2, units
 
 def check_and_append(storage:dict[str, Sample], label:str, od:float, sample_type:str, conc:float = None)->None:
@@ -315,6 +319,6 @@ def temp()->None:
     ewrapper.add_column("H", [sample.label for sample in samples])
     ewrapper.add_column("I", [round(sample.average, 3) for sample in samples])
     ewrapper.add_column("J", [sample.calculated_ab for sample in samples])
-    ewrapper.write_excel("C:\\\\Users\\elie\\Desktop\\20240305 Mirimus_results Reanalyzed.xlsx")
+    ewrapper.save_as_excel("C:\\\\Users\\elie\\Desktop\\20240305 Mirimus_results Reanalyzed.xlsx")
     
     regression_plot(equation, standards, samples, r, "ng/mL", "5PL", "20240305 Mirimus Results Reanalyzed")

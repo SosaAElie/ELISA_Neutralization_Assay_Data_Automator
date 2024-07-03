@@ -1,4 +1,3 @@
-from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QFileDialog, QPushButton, QRadioButton, QCheckBox,QLineEdit, QVBoxLayout, QGridLayout
 from Classes.ErrorMessageBox import ErrorMessageBox
 import pathlib
@@ -50,6 +49,8 @@ class FileSelector(QWidget):
                 return [self.raw_file, self.template, *regression_selections]
             elif analysis_type == "ave+3xStdev":
                 return [self.raw_file, self.template]
+            else:
+                return []
         else:
             ErrorMessageBox("Raw Data File or Template File Missing")
             return []
@@ -115,5 +116,8 @@ class AnalysisSelection(QWidget):
     
     def get_current_analysis(self)->str:
         '''Returns the current analysis selection present on the UI'''
+        if self.analysis is None:
+            ErrorMessageBox("Select an analysis type.")
+            return ""
         return self.analysis
 

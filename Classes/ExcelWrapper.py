@@ -2,29 +2,35 @@ from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.cell.cell import Cell
 from openpyxl.drawing.image import Image
-import openpyxl
+from openpyxl import load_workbook
 from typing import Any, Callable
-import csv
 import PIL.Image as PILImage
+from pathlib import Path
+import csv
 
 class ExcelWrapper:
 
-    def __init__(self, filepath:str):
+    def __init__(self, filepath:str|Path):
         '''Takes in a text file and produces and excel file or takes a an excel filepath'''
-        if filepath.find(".txt") >= 0:
+        if type(filepath) == str: ext = filepath.split(".")[-1]
+        elif isinstance(filepath, Path): ext = filepath.suffix
+        else: raise TypeError("Incorrect filepath type passed in, only accepts str or Path object.")
+
+            
+        if ext == "txt":
             try:
                 self.wkbk, self.wkst = self.__create_excel(self.__get_data(filepath, "utf-16", "\t"))
             except UnicodeEncodeError:
                 self.wkbk, self.wkst = self.__create_excel(self.__get_data(filepath, "utf-8", "\t"))
-        elif filepath.find(".csv") >= 0:
+        elif ext == "csv":
             self.wkbk, self.wkst = self.__create_excel(self.__get_data(filepath, "utf-8", ","))
-        elif filepath.find(".xlsx") >= 0:
-            self.wkbk = openpyxl.load_workbook(filepath)
-            self.wkst = self.wkbk.active
+        elif ext == "xlsx":
+            self.wkbk = load_workbook(filepath)
+            self.wkst = self.wkbk.active        
         else:
-            raise ValueError
+            raise ValueError(f"Extension: {ext} not supported.")
         
-        self.filepath = filepath
+        self.filepath = str(filepath)
 
     def __get_data(self, filepath:str, encoding:str, delimiter:str )->list[list]:
         '''Gets the data from a utf-16 encoded text file and returns it as a list of lists'''
@@ -88,7 +94,7 @@ class ExcelWrapper:
             "last_index":int(end[1:]),
         }
     
-    def get_matrix(self, top_offset:int, left_offset:int, width:int, height:int, by_col = True, val_only = False)->list[Cell]:
+    def get_matrix(self, top_offset:int, left_offset:int, width:int, height:int, by_col = True, val_only = False)->list[Cell]|list[str]:
         '''Returns a list of cells that is width * height beginning from the starting point, if by_col is set to True
         then the list returned are the cells in the order they appear in the excel file vertically, otherwise list returned are 
         the cells horizontally'''
@@ -159,9 +165,9 @@ class ExcelWrapper:
         index = headers.index(header)+1 #Adds one because of openpyxl 1-index system
         return self.get_column(None,start_row=start_row, end_row=end_row, values_only=values_only, index=index) if values_only else self.get_column(None,start_row=start_row, end_row=end_row, values_only=values_only, index=index) 
 
-    def __convert_col_index_to_letter(index:int)->str:
+    def convert_col_index_to_letter(self, index:int)->str:
         '''Converts a column index used by openpyxl to a column letter that can be used to access the data in the specified column'''
-        pass
+        return (index-1) + ord("A")
     
     def convert_letter_to_col_index(self, col:str)->int:
         '''Converts a column letter(s) such as "A" or "AA" into a numerical index value used by openpyxl to access the column in the worksheet'''
@@ -177,16 +183,31 @@ class ExcelWrapper:
             index+=(base**power)*(ord(char)-ord("A")+1)
         return index
 
-    def write_excel(self, destination:str)->None:
+    def save_as_excel(self, destination:str = None)->None:
+        if destination == None:
+            destination = Path(self.filepath).with_suffix(".xlsx")
         self.wkbk.save(destination)
         return None
     
-    def save_image(self,image:PILImage, cell_coord:str)->None:
+    def save_as_csv(self, destination:str,  wkst_name:str = None)->None:
+        if wkst_name is None:
+            wkst = self.wkbk.active
+        else:
+            wkst = self.wkbk[wkst_name]
+        with open(destination, mode="w", newline="") as csvfile:        
+            writer = csv.writer(csvfile, delimiter=",")            
+            for row in wkst.iter_rows():
+                writer.writerow([cell.value for cell in row if len(row) > 0])
+    
+    def save_image(self,image:PILImage.Image, cell_coord:str)->None:
         self.wkst.add_image(Image(image), cell_coord)
         return None
     
     def get_last_row(self)->int:
         return self.wkst.max_row
+    
+    def get_last_col(self)->int:
+        return self.wkst.max_column
     
     @classmethod
     def new_excel(cls, wkbk_name:str, wkst_name:str):
@@ -194,3 +215,20 @@ class ExcelWrapper:
         # wkst = wkbk.create_sheet(wkst_name)
         wkbk.save(wkbk_name)
         return cls(wkbk_name)
+    
+    def __str__(self)->str:
+        wkst = self.wkbk.active
+        if wkst is None:
+            wkst = self.wkbk[self.wkbk.sheetnames[0]]
+        for row in wkst.iter_rows(max_row=5):
+            print([cell.value for cell in row if len(row) > 0])
+        return ""
+
+    def get_rows(self, num:int = None, values_only:bool = True)->list[Any|Cell]:
+        wkst = self.wkbk.active
+        rows = []
+        if wkst is None:
+            wkst = self.wkbk[self.wkbk.sheetnames[0]]
+        for row in wkst.iter_rows(max_row=num):
+            rows.append([cell.value if cell.value is not None else "" for cell in row if len(row) > 0] if values_only else [cell for cell in row if len(row) > 0])
+        return rows

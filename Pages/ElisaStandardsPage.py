@@ -71,12 +71,12 @@ class ElisaStandardsPage(QWidget):
         selected_files = [file_selector.get_selection() for file_selector in self.file_selectors]
         coroutines = []
         for selected in selected_files:
-            if len(selected) == 0: return            
-            else: 
-                if len(selected) > 2: 
-                    raw, template, regression, excel, title = selected
-                    coroutines.append(es.main(raw, template, self.destination_filepath, regression, excel, title))
-                else:
-                    coroutines.append(ec.main(raw,template, self.destination_filepath))
+            if len(selected) == 0: return                        
+            if len(selected) > 2: 
+                raw, template, regression, excel, title = selected
+                coroutines.append(es.main(raw, template, self.destination_filepath, regression, excel, title))
+            else:
+                raw, template = selected
+                coroutines.append(ec.main(raw,template, self.destination_filepath))
         await asyncio.gather(*coroutines)
        
