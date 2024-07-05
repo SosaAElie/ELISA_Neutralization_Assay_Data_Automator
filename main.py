@@ -1,9 +1,8 @@
 from PyQt5.QtWidgets import QStackedWidget, QApplication, QVBoxLayout, QWidget
 from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtCore import Qt
-from Pages.ElisaNeutralizationAssayPage import ElisaNeutralizationAssayPage
-from Pages.ElisaStandardsPage import ElisaStandardsPage
-from Pages.LuciferaseAssayPage import LuciferaseAssayPage
+from Pages.ElisaPage import ElisaPage
+# from Pages.LuciferaseAssayPage import LuciferaseAssayPage
 from Classes.SwitchPagesBar import SwitchPagesBar
 import sys
 
@@ -12,9 +11,8 @@ class StackedPages(QStackedWidget):
         super().__init__()
         self.setMinimumSize(400,600)
         self.setWindowTitle('ELISA and Neutralization Assay Automator')
-        self.addWidget(ElisaStandardsPage(self))
-        self.addWidget(ElisaNeutralizationAssayPage(self))
-        self.addWidget(LuciferaseAssayPage(self))
+        self.addWidget(ElisaPage(self))        
+        # self.addWidget(LuciferaseAssayPage(self))
         self.show()
 
 class ParentPage(QWidget):

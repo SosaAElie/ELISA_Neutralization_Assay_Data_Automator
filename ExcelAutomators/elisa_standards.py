@@ -5,7 +5,6 @@ import statistics
 import math
 import os
 import matplotlib.pyplot as plt
-import matplotlib.axes as ax
 import scipy.optimize
 import numpy as np
 from PIL import Image
@@ -285,40 +284,40 @@ def get_unit(val:str)->str:
     return val[-5:]
 
  
-def temp()->None:
-    ewrapper = ExcelWrapper("C:\\\\Users\\elie\\Desktop\\20240305 Mirimus_results.xlsx")
-    samps = ewrapper.get_column("A", start_row=2, end_row=173, values_only=True)
-    samp_ods = [np.float32(od) for od in ewrapper.get_column("C", start_row=2, end_row=173, values_only=True)]
-    samples:list[Sample] = []
+# def temp()->None:
+#     ewrapper = ExcelWrapper("C:\\\\Users\\elie\\Desktop\\20240305 Mirimus_results.xlsx")
+#     samps = ewrapper.get_column("A", start_row=2, end_row=173, values_only=True)
+#     samp_ods = [np.float32(od) for od in ewrapper.get_column("C", start_row=2, end_row=173, values_only=True)]
+#     samples:list[Sample] = []
     
-    for s, od in zip(samps, samp_ods):
-        samples.append(Sample(s, average=od))
+#     for s, od in zip(samps, samp_ods):
+#         samples.append(Sample(s, average=od))
     
-    print(samples[0])
-    concentrations = ewrapper.get_column("F", start_row=2, end_row=7, values_only=True)
-    optical_densities = ewrapper.get_column("G", start_row=2, end_row=7, values_only=True)
-    standards:list[Sample] = []
-    for conc, od in zip(concentrations, optical_densities):
-        c = np.float32(remove_unit(conc))
-        od = np.float32(od)
-        standards.append(Sample(conc, average=od, ab_concentration=c))
+#     print(samples[0])
+#     concentrations = ewrapper.get_column("F", start_row=2, end_row=7, values_only=True)
+#     optical_densities = ewrapper.get_column("G", start_row=2, end_row=7, values_only=True)
+#     standards:list[Sample] = []
+#     for conc, od in zip(concentrations, optical_densities):
+#         c = np.float32(remove_unit(conc))
+#         od = np.float32(od)
+#         standards.append(Sample(conc, average=od, ab_concentration=c))
         
-    inverse, equation, r = get_five_parameter_logistic_curve([standard.ab_concentration for standard in standards], [standard.average for standard in standards])
+#     inverse, equation, r = get_five_parameter_logistic_curve([standard.ab_concentration for standard in standards], [standard.average for standard in standards])
     
-    for sample in samples:
-        diff = []
-        for standard in standards:
-            diff.append(abs(sample.average - standard.average))
+#     for sample in samples:
+#         diff = []
+#         for standard in standards:
+#             diff.append(abs(sample.average - standard.average))
         
-        sample.closest_conc = standards[diff.index(min(diff))].ab_concentration
+#         sample.closest_conc = standards[diff.index(min(diff))].ab_concentration
         
-    for standard in standards: standard.calculated_ab = inverse(standard.average, standard.ab_concentration)
+#     for standard in standards: standard.calculated_ab = inverse(standard.average, standard.ab_concentration)
             
-    for sample in samples: sample.calculated_ab = inverse(sample.average, sample.closest_conc)
+#     for sample in samples: sample.calculated_ab = inverse(sample.average, sample.closest_conc)
     
-    ewrapper.add_column("H", [sample.label for sample in samples])
-    ewrapper.add_column("I", [round(sample.average, 3) for sample in samples])
-    ewrapper.add_column("J", [sample.calculated_ab for sample in samples])
-    ewrapper.save_as_excel("C:\\\\Users\\elie\\Desktop\\20240305 Mirimus_results Reanalyzed.xlsx")
+#     ewrapper.add_column("H", [sample.label for sample in samples])
+#     ewrapper.add_column("I", [round(sample.average, 3) for sample in samples])
+#     ewrapper.add_column("J", [sample.calculated_ab for sample in samples])
+#     ewrapper.save_as_excel("C:\\\\Users\\elie\\Desktop\\20240305 Mirimus_results Reanalyzed.xlsx")
     
-    regression_plot(equation, standards, samples, r, "ng/mL", "5PL", "20240305 Mirimus Results Reanalyzed")
+#     regression_plot(equation, standards, samples, r, "ng/mL", "5PL", "20240305 Mirimus Results Reanalyzed")

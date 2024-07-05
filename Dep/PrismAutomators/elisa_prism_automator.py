@@ -1,5 +1,5 @@
 from xml.dom import minidom
-from settings import *
+from Dep.settings import *
 
 def set_sample_numbers(*elements:minidom.Element, data:dict[str, list[str|int]])->None:
     elements1 = elements[0].getElementsByTagName('d')

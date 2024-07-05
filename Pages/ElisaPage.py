@@ -7,7 +7,7 @@ import ExcelAutomators.elisa_standards as es
 import ExcelAutomators.elisa_controls as ec
 import asyncio
 
-class ElisaStandardsPage(QWidget):
+class ElisaPage(QWidget):
     def __init__(self,parent:QStackedWidget):
         super().__init__(parent)
 

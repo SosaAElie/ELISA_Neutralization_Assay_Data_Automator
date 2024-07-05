@@ -1,0 +1,16 @@
+THIS,IS,THE,ELISA,96,WELL,PLATE,TEMPLATE.,PLEASE,EDIT,WITH,YOUR,LAYOUT.
+,1,2,3,4,5,6,7,8,9,10,11,12
+A,Control-MIR070,Control-MIR070,Sample-LCM S1,Sample-LCM S1,Sample-LCM S9,Sample-LCM S9,Sample-LCM S17,Sample-LCM S17,Sample-LCM S25,Sample-LCM S25,Sample-LCM S33,Sample-LCM S33
+B,Control-MIR075,Control-MIR075,Sample-LCM S2,Sample-LCM S2,Sample-LCM S10,Sample-LCM S10,Sample-LCM S18,Sample-LCM S18,Sample-LCM S26,Sample-LCM S26,Sample-LCM S34,Sample-LCM S34
+C,Control-MIR076,Control-MIR076,Sample-LCM S3,Sample-LCM S3,Sample-LCM S11,Sample-LCM S11,Sample-LCM S19,Sample-LCM S19,Sample-LCM S27,Sample-LCM S27,Sample-LCM S35,Sample-LCM S35
+D,Control-MIR077,Control-MIR077,Sample-LCM S4,Sample-LCM S4,Sample-LCM S12,Sample-LCM S12,Sample-LCM S20,Sample-LCM S20,Sample-LCM S28,Sample-LCM S28,Sample-LCM S36,Sample-LCM S36
+E,Control-MIR082,Control-MIR082,Sample-LCM S5,Sample-LCM S5,Sample-LCM S13,Sample-LCM S13,Sample-LCM S21,Sample-LCM S21,Sample-LCM S29,Sample-LCM S29,Sample-LCM S37,Sample-LCM S37
+F,Control-MIR089,Control-MIR089,Sample-LCM S6,Sample-LCM S6,Sample-LCM S14,Sample-LCM S14,Sample-LCM S22,Sample-LCM S22,Sample-LCM S30,Sample-LCM S30,Sample-LCM S38,Sample-LCM S38
+G,Control-MIR091,Control-MIR091,Sample-LCM S7,Sample-LCM S7,Sample-LCM S15,Sample-LCM S15,Sample-LCM S23,Sample-LCM S23,Sample-LCM S31,Sample-LCM S31,Sample-LCM S39,Sample-LCM S39
+H,Control-MIR092,Control-MIR092,Sample-LCM S8,Sample-LCM S8,Sample-LCM S16,Sample-LCM S16,Sample-LCM S24,Sample-LCM S24,Sample-LCM S32,Sample-LCM S32,Sample-Anti-IFNω Ab 50ng/mL,Sample-Anti-IFNω Ab 50ng/mL
+,,,,,,,,,,,,
+"KEY: Please Prefix all items in the plate with any of the below prefixes, using a dash ""-"" to separate the prefix from the rest of the name",,,,,,,,,,,,
+None,No sample is in the well,,,,,,,,,,,
+Sample,Refers to any sample on the plate that is not a standard or a control,,,,,,,,,,,
+Standard,Refers to the standard used for regression analysis,,,,,,,,,,,
+Control,Refers to the positive or negative control on the plate,,,,,,,,,,,
