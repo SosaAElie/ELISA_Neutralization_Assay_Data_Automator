@@ -11,9 +11,9 @@ import csv
 class ExcelWrapper:
 
     def __init__(self, filepath:str|Path):
-        '''Takes in a text file and produces and excel file or takes a an excel filepath'''
+        '''Takes in a text file and produces and excel file or takes a an excel filepath'''        
         if type(filepath) == str: ext = filepath.split(".")[-1]
-        elif isinstance(filepath, Path): ext = filepath.suffix
+        elif isinstance(filepath, Path): ext = filepath.suffix.split(".")[-1]
         else: raise TypeError("Incorrect filepath type passed in, only accepts str or Path object.")
 
             

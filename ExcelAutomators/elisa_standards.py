@@ -1,5 +1,6 @@
 from Classes.ExcelWrapper import ExcelWrapper
 from Classes.Sample import Sample
+from pathlib import Path
 from typing import Callable
 import statistics
 import math
@@ -9,26 +10,22 @@ import scipy.optimize
 import numpy as np
 from PIL import Image
 import io
+LINEAR = "-Linear-"
+LOGARITHMIC = '-Logarithmic-'
+FIVEPL = "-5PL-"
 
 
-async def main(data_filepath:str, template_filepath:str, destination:str, regression_type:str = "linear", make_excel:bool = False, graph_title:str = "")->None:
+async def main(data_filepath:Path, template_filepath:Path, desitination_dir:Path, regression:str = "Linear", make_excel:bool = False, graph_title:str = "", xlsx_filename:str = "")->None:
     
     '''User selects whether the samples were run in duplicates or triplicates. The average of the replicates of the samples, standards and any controls are calculated, using
         linear regression the concentration of the samples is determined from the slope of the linear regression calculated from the standards.
         Assumes the standards are always on the right hand side of the plate and the IgG isotype control is on the bottom of the standards, the rest of the wells contain samples.
         Assumes the highest concentration of the standard is 1 ug/mL and the dilution factor is 2x by default
-    '''
+    '''    
     
     ewrapper = ExcelWrapper(data_filepath)
-    regression = ""
-    if regression_type == "Linear":
-        regression = "-Linear-"
-    elif regression_type == "Logarithmic":
-        regression = "-Logarithmic-"
-    elif regression_type == "5PL":
-        regression = "-5PL-"
-    
-    new_dest = '/'.join([destination,data_filepath.replace(".txt", f"{regression}.xlsx").split('/')[-1]])
+    regression = f"-{regression}-"
+    new_dest = desitination_dir/data_filepath.name.replace(".txt", f"{regression}.xlsx")
     
     plate = ewrapper.get_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
     template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
@@ -36,11 +33,11 @@ async def main(data_filepath:str, template_filepath:str, destination:str, regres
     
     if len([standard for standard in standards if standard.sample_type == "standard"]) == 0: return None
 
-    if regression_type == "Linear":
+    if regression == LINEAR:
         inverse_equation,equation, extra_info = get_linear_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
-    elif regression_type == "Logarithmic":
+    elif regression == LOGARITHMIC:
         inverse_equation, equation, extra_info = get_logarithmic_regression_function([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
-    elif regression_type == "5PL":
+    elif regression == FIVEPL:
         inverse_equation, equation, extra_info  = get_five_parameter_logistic_curve([standard.ab_concentration for standard in standards if standard.sample_type == "standard"], [standard.average for standard in standards if standard.sample_type == "standard"])
        
     for sample in samples:
@@ -52,7 +49,7 @@ async def main(data_filepath:str, template_filepath:str, destination:str, regres
         sample.closest_conc = standards[diff.index(min(diff))].ab_concentration
         
     
-    if regression_type == "5PL":
+    if regression == FIVEPL:
         for standard in standards: standard.calculated_ab = inverse_equation(standard.average, standard.ab_concentration)
             
         for sample in samples: sample.calculated_ab = inverse_equation(sample.average, sample.closest_conc)
@@ -61,7 +58,7 @@ async def main(data_filepath:str, template_filepath:str, destination:str, regres
             
         for sample in samples: sample.calculated_ab = inverse_equation(sample.average)
     
-    figure = regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, extra_info, units, regression_type, figure_name = new_dest.split("/")[-1] if graph_title == "" else graph_title)
+    figure = regression_plot(equation,[standard for standard in standards if standard.sample_type == "standard"], samples, extra_info, units, regression, figure_name = new_dest.stem if graph_title == "" else graph_title)
     
     if make_excel:
         ewrapper.save_image(figure, f"A{ewrapper.get_last_row()}")
@@ -183,13 +180,13 @@ def regression_plot(equation:Callable[[float], float], standards:list[Sample], s
     plt.plot([standard.ab_concentration for standard in standards], [standard.average for standard in standards], "go")
     for standard in standards:plt.text(standard.ab_concentration, standard.average, standard.label)
     
-    if regression_type == "Linear":
+    if regression_type == LINEAR:
         plt.plot([standard.ab_concentration for standard in standards],[equation(standard.ab_concentration) for standard in standards], label = f"R-squared: {round(extra_info, 3)}")
         plt.legend(loc = "upper center")
-    elif regression_type == "Logarithmic":
+    elif regression_type == LOGARITHMIC:
         plt.plot([x for x in filler if x!= 0], [equation(x) for x in filler if x != 0], label = f"R-squared: {round(extra_info, 3)}")
         plt.legend(loc = "upper center")
-    elif regression_type == "5PL":
+    elif regression_type == FIVEPL:
         A,B,C,D,G = [round(val, 3) for val in extra_info]
         plt.plot(filler, equation(filler), label = f'''
         The optimized parameters are:

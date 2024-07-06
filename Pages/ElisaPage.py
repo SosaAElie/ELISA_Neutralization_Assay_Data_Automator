@@ -3,6 +3,7 @@ from PyQt5 import QtCore
 from PyQt5.QtGui import QFont
 from Classes.ErrorMessageBox import ErrorMessageBox
 from Classes.FileSelector import FileSelector
+from pathlib import Path
 import ExcelAutomators.elisa_standards as es
 import ExcelAutomators.elisa_controls as ec
 import asyncio
@@ -49,8 +50,9 @@ class ElisaPage(QWidget):
 
         
 
-    def select_destination(self):
-        self.destination_filepath = QFileDialog.getExistingDirectory(self,'Select Directory')
+    def select_destination(self)->None:        
+        self.destination_filepath = Path(QFileDialog.getExistingDirectory(self,'Select Directory'))
+        return None
     
     def add_file_selectors(self)->None:
         index = self.layout().indexOf(self.file_selectors[-1])+1
@@ -73,8 +75,9 @@ class ElisaPage(QWidget):
         for selected in selected_files:
             if len(selected) == 0: return                        
             if len(selected) > 2: 
-                raw, template, regression, excel, title = selected
-                coroutines.append(es.main(raw, template, self.destination_filepath, regression, excel, title))
+                raw, template, regression, excel, title, xlsx = selected
+                print(raw)
+                coroutines.append(es.main(raw, template, self.destination_filepath, regression, excel, title, xlsx))
             else:
                 raw, template = selected
                 coroutines.append(ec.main(raw,template, self.destination_filepath))
