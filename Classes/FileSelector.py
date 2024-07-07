@@ -1,5 +1,4 @@
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QFileDialog, QPushButton, QRadioButton, QCheckBox,QLineEdit, QVBoxLayout, QGridLayout
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QFileDialog, QPushButton, QRadioButton, QCheckBox,QLineEdit, QGridLayout
 from Classes.ErrorMessageBox import ErrorMessageBox
 import pathlib
 import typing
@@ -28,7 +27,7 @@ class FileSelector(QWidget):
         '''Gets raw data filepath, sets the text of the label to the stem of the filepath, sets the text of the xlsx QLineEdit instance to the filepath stem'''
         self.raw_filepath = pathlib.Path(QFileDialog(filter=".txt").getOpenFileName(self, 'Select File',filter='*.txt')[0])
         self.set_label_text(self.raw_filepath, "label 1")
-        analysis_widget = self.analysis_selection.get_analysis_type_widget()
+        analysis_widget = self.analysis_selection.get_analysis_widget()
         if analysis_widget is None: return None
         analysis_widget.set_xlsx_filename(self.raw_filepath.stem)
 
@@ -44,27 +43,36 @@ class FileSelector(QWidget):
         else:
             self.findChild(QLabel, label_name).setText("")
             
-    def get_selection(self)->list[typing.Any]:
+    def get_selection(self)->dict[str, list[str|bool|pathlib.Path]]:
+        '''Gets the user inputed values from the UI and returns it as a list'''
+        default = {
+            "analysis":"",
+            "data":[],
+        }
 
-        if self.raw_filepath and self.template_filepath:
-            analysis_type = self.analysis_selection.get_current_analysis()
-            if analysis_type == "regression":
-                analysis_widget = self.layout().itemAt(self.layout().count()-1).widget()                
-                regression_selections = analysis_widget.get_selection()
-                if len(regression_selections) < 3: return []
-                return [self.raw_filepath, self.template_filepath, *regression_selections]
-            elif analysis_type == "ave+3xStdev":
-                return [self.raw_filepath, self.template_filepath]
-            else:
-                return []
-        else:
+        if self.raw_filepath == None or self.template_filepath == None: 
             ErrorMessageBox("Raw Data File or Template File Missing")
-            return []
+            return default
+            
+        if not self.raw_filepath.is_file() or not self.template_filepath.is_file(): 
+            ErrorMessageBox("Raw Data File or Template File Missing")
+            return default
+        print(self.raw_filepath, self.template_filepath)
+        analysis_type = self.analysis_selection.get_current_analysis()
+        analysis_widget = self.analysis_selection.get_analysis_widget()
+        selections = analysis_widget.get_selection()
+        if analysis_type is None or analysis_widget is None or len(selections) == 0: return default
+        return {
+            "analysis":analysis_type,
+            "data":[self.raw_filepath, self.template_filepath, *selections]
+            }
+        
         
 
 class UserEditableFields(QWidget):
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
+        self.setObjectName("user_editable_fields")
         layout = QHBoxLayout(self)
         layout.addWidget(QCheckBox(parent=self, text="Make Excel?"))
         
@@ -75,6 +83,9 @@ class UserEditableFields(QWidget):
         xlsx_filename = QLineEdit(parent=self)
         xlsx_filename.setObjectName("xlsx_filename")
         xlsx_filename.setPlaceholderText("Name Excel File or Leave Empty to Use Default Data Filename Instead")
+
+        raw_data_filename = self.__get_parent_raw_data_file__()
+        xlsx_filename.setText(raw_data_filename)
 
 
         layout.addWidget(graph_title)
@@ -88,15 +99,33 @@ class UserEditableFields(QWidget):
         
     def set_xlsx_filename(self, name:str)->None:
         '''Sets the name of the xlsx attribute to the string passed in'''
-        xlsx_filename = self.findChild(QLineEdit, "xlsx_filename")
-        current_name = xlsx_filename.text()
-        if current_name == "": xlsx_filename.setText(name)
+        xlsx_filename = self.findChild(QLineEdit, "xlsx_filename")        
+        xlsx_filename.setText(name)
+        return None
+    
+    def __get_parent_raw_data_file__(self)->str:
+        '''Checks the great-grandparent for the raw_filepath Path attribute, returns the stem or an empty string if it does not exist'''
+        great_grandparent = self.parent().parent().parent()
+        if filename := great_grandparent.raw_filepath:
+            return filename.stem
+        return ""
+    
 
         
 class AvePlusThreeStdev(QWidget):
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
-        pass
+        layout = QHBoxLayout(self)        
+        layout.addWidget(UserEditableFields(self))
+        self.setLayout(layout)
+
+    def get_selection(self)->list[typing.Any]:
+        return self.findChild(UserEditableFields).get_selection()        
+        
+    def set_xlsx_filename(self, name:str)->None:
+        '''Sets the name of the xlsx attribute to the string passed in'''
+        xlsx_filename = self.findChild(QLineEdit, "xlsx_filename")        
+        xlsx_filename.setText(name)
 
 
 class RegressionSelection(QWidget):
@@ -104,11 +133,8 @@ class RegressionSelection(QWidget):
         super().__init__(parent)        
         layout = QHBoxLayout(self)
         regressions = ["Linear", "Logarithmic", "5PL"]
-        for regression in regressions: 
-            layout.addWidget(QRadioButton(regression, self))
-        user_editable_fields = UserEditableFields(self)
-        user_editable_fields.setObjectName("user_editable_fields")      
-        layout.addWidget(user_editable_fields)
+        for regression in regressions: layout.addWidget(QRadioButton(regression, self))
+        layout.addWidget(UserEditableFields(self))
         self.setLayout(layout)
     
     def get_selection(self)->list[typing.Any]:
@@ -121,9 +147,8 @@ class RegressionSelection(QWidget):
         
     def set_xlsx_filename(self, name:str)->None:
         '''Sets the name of the xlsx attribute to the string passed in'''
-        xlsx_filename = self.findChild(QLineEdit, "xlsx_filename")
-        current_name = xlsx_filename.text()
-        if current_name == "": xlsx_filename.setText(name)
+        xlsx_filename = self.findChild(QLineEdit, "xlsx_filename")        
+        xlsx_filename.setText(name)
         
 
 
@@ -131,6 +156,7 @@ class RegressionSelection(QWidget):
 class AnalysisSelection(QWidget):
     def __init__(self, parent:QWidget, name:str) -> None:
         super().__init__(parent)
+        self.analysis = None
         layout = QHBoxLayout()
         self.setObjectName(name)
         threexstd_Button = QRadioButton("Average of Controls + 3x Stdev of Controls")
@@ -139,7 +165,6 @@ class AnalysisSelection(QWidget):
         regression_button.clicked.connect(lambda: self.changeAnalysis("regression"))
         layout.addWidget(threexstd_Button)
         layout.addWidget(regression_button)
-        self.analysis = None
         self.setLayout(layout)
 
     def changeAnalysis(self, analysis_type:str)->None:        
@@ -161,7 +186,7 @@ class AnalysisSelection(QWidget):
             return ""
         return self.analysis
     
-    def get_analysis_type_widget(self)->RegressionSelection|AvePlusThreeStdev|None:
+    def get_analysis_widget(self)->RegressionSelection|AvePlusThreeStdev|None:
         '''Returns the current analysis widget selected or None if no radiobutton is selected'''
         parent_layout = self.parentWidget().layout() 
         if self.analysis is None: return None

@@ -18,10 +18,8 @@ class ElisaPage(QWidget):
         self.setLayout(self.vertical_layout)
 
         self.app_description = QLabel('''
-        Python Software designed to interpolate the concentration of unknowns from a set of standards present on the plate.\n\n
-                                                    Current Limitations\n
-            1) Only processes data from the SoftMax Pro Optical Plate reader, accepts txt files in "plate" exported format\n
-            2) Only accepts 96 well plate csv template 
+        Python Software designed to interpolate the concentration of unknowns from a set of standards
+        present on the plate or to determine positivity as a value relative to controls on the plate.\n
                                     ''')
         
         self.app_description.setFont(QFont('Helvetica', 12))
@@ -64,22 +62,21 @@ class ElisaPage(QWidget):
         if len(self.file_selectors) > 1:
             self.vertical_layout.removeWidget(self.file_selectors.pop())
         
-    async def process_elisa(self):
+    async def process_elisa(self)->None:
 
         if not self.destination_filepath: 
             ErrorMessageBox("No Destination Selected")
-            return
+            return None
         
         selected_files = [file_selector.get_selection() for file_selector in self.file_selectors]
         coroutines = []
         for selected in selected_files:
-            if len(selected) == 0: return                        
-            if len(selected) > 2: 
-                raw, template, regression, excel, title, xlsx = selected
-                print(raw)
-                coroutines.append(es.main(raw, template, self.destination_filepath, regression, excel, title, xlsx))
-            else:
-                raw, template = selected
-                coroutines.append(ec.main(raw,template, self.destination_filepath))
+            data = selected["data"]
+            analysis_type = selected["analysis"]
+            if len(data) == 0: return None
+            if analysis_type == "regression":                                     
+                coroutines.append(es.main(*data, self.destination_filepath))
+            elif analysis_type == "ave+3xStdev":
+                coroutines.append(ec.main(*data, self.destination_filepath))
         await asyncio.gather(*coroutines)
        

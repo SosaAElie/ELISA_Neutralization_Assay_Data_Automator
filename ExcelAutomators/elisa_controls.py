@@ -3,29 +3,40 @@ from pathlib import Path
 from Classes.ExcelWrapper import ExcelWrapper
 from Classes.Sample import Sample
 import matplotlib.pyplot as plt
-# from settings import *
 from random import randint
 import statistics
 import io
 import os
-  
 
-async def main(data_filepath:str, template_filepath:str, destination_filepath:str)->None:
+AVE3XSTDEV = "-Ave+3xStdev-"
+
+async def main(data_filepath:Path, template_filepath:Path, make_excel:bool, graph_title:str, xlsx_filename:str, destination_dir:Path)->None:
     '''Takes in the template and the raw txt exported by the SoftMax Pro software and determines positivity as the average OD
         of the controls + 3 stdev of the OD of the controls
     '''
+    
     ewrapper = ExcelWrapper(data_filepath)
-    new_dest = '/'.join([destination_filepath,data_filepath.replace(".txt", ".xlsx").split('/')[-1]])
+    xlsx_filename = parse_filename(xlsx_filename)
+    if xlsx_filename != data_filepath.stem:
+        new_dest = destination_dir/f"{xlsx_filename}{AVE3XSTDEV}.xlsx"
+    else:
+        new_dest = destination_dir/data_filepath.name.replace(".txt", f"{AVE3XSTDEV}.xlsx")
+
     plate = ewrapper.get_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
     template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
     samples, controls = merge(plate, template)
     if len(controls) < 1: return None
     cutoff = round(calculate_cutoff(controls),3)
     add_to_excel(controls, samples, cutoff, ewrapper)
-    graph_image = scatter_graph(controls, samples, cutoff, Path(data_filepath).stem)
+    graph_image = scatter_graph(controls, samples, cutoff, new_dest.stem if graph_title == "" else graph_title)
     ewrapper.save_image(graph_image, f"A{ewrapper.get_last_row()}")
-    ewrapper.save_as_excel(new_dest)
-    os.system(f'start excel "{new_dest}"')
+    
+    if make_excel: 
+        ewrapper.save_as_excel(new_dest)    
+        if os.name == "nt":
+            os.system(f'start excel "{new_dest}"')
+        else:
+            os.system(f'open "{new_dest}"')
 
 def add_to_excel(controls:list[Sample], samples:list[Sample], cutoff:float, ewrapper:ExcelWrapper)->None:
     '''Adds the data to the ewrapper instance'''
@@ -140,3 +151,12 @@ def scatter_graph(controls:list[Sample], samples:list[Sample], cutoff:float, tit
     figure_bytes = io.BytesIO()
     plt.savefig(figure_bytes,format = "jpeg")
     return Image.open(figure_bytes)
+
+def parse_filename(filename:str)->str:
+    '''Parses the filename passed in by the user to see if there was any extension added to it such as, .xlsx, .txt, .csv, etc
+        Returns the filename without the extension
+    '''
+    if filename.find(".") > -1:
+        stem = filename.split(".")[-1]
+        return stem
+    return filename

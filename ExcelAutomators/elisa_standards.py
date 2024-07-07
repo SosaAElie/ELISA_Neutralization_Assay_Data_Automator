@@ -10,12 +10,12 @@ import scipy.optimize
 import numpy as np
 from PIL import Image
 import io
+
 LINEAR = "-Linear-"
 LOGARITHMIC = '-Logarithmic-'
 FIVEPL = "-5PL-"
 
-
-async def main(data_filepath:Path, template_filepath:Path, desitination_dir:Path, regression:str = "Linear", make_excel:bool = False, graph_title:str = "", xlsx_filename:str = "")->None:
+async def main(data_filepath:Path, template_filepath:Path, regression:str, make_excel:bool, graph_title:str, xlsx_filename:str, destination_dir:Path)->None:
     
     '''User selects whether the samples were run in duplicates or triplicates. The average of the replicates of the samples, standards and any controls are calculated, using
         linear regression the concentration of the samples is determined from the slope of the linear regression calculated from the standards.
@@ -25,7 +25,13 @@ async def main(data_filepath:Path, template_filepath:Path, desitination_dir:Path
     
     ewrapper = ExcelWrapper(data_filepath)
     regression = f"-{regression}-"
-    new_dest = desitination_dir/data_filepath.name.replace(".txt", f"{regression}.xlsx")
+
+    xlsx_filename = parse_filename(xlsx_filename)
+    if data_filepath.stem != xlsx_filename:        
+        new_dest = destination_dir/f"{xlsx_filename}{regression}.xlsx"
+    else:
+        new_dest = destination_dir/data_filepath.name.replace(".txt", f"{regression}.xlsx")
+
     
     plate = ewrapper.get_matrix(top_offset=3, left_offset=3, width=12, height=8, val_only=True)
     template = ExcelWrapper(template_filepath).get_matrix(top_offset=2, left_offset=2, width = 12, height=8, val_only=True)
@@ -64,9 +70,15 @@ async def main(data_filepath:Path, template_filepath:Path, desitination_dir:Path
         ewrapper.save_image(figure, f"A{ewrapper.get_last_row()}")
         write_to_excel(ewrapper, samples, standards, extra_info=extra_info)
         ewrapper.save_as_excel(new_dest)
-        os.system(f'start excel "{new_dest}"')
+        
+        if os.name == "nt":
+            os.system(f'start excel "{new_dest}"')
+        elif os.name == "posix":            
+            os.system(f'open "{new_dest}"')        
+
     
     return None
+
 
 def write_to_excel(ewrapper:ExcelWrapper, samples:list[Sample], standards:list[Sample], extra_info:list[float]|float = None)->None: 
     '''Writes the label, values, average(std), ab_concentration stored in the Sample instance horizontally'''
@@ -149,17 +161,17 @@ def get_five_parameter_logistic_curve(x_values:list[float], y_values:list[float]
     
     A,B,C,D,G = optimal_params
     
-    print(f'''
-        The optimized parameters are:
+    # print(f'''
+    #     The optimized parameters are:
         
-        A (The lower asymptote): {A}
-        B (The slope factor): {B}
-        C (The EC50): {C}
-        D (The upper asymptote): {D} 
-        G (The asymmetry factor, when 1 results in the 4PL Curve): {G} 
+    #     A (The lower asymptote): {A}
+    #     B (The slope factor): {B}
+    #     C (The EC50): {C}
+    #     D (The upper asymptote): {D} 
+    #     G (The asymmetry factor, when 1 results in the 4PL Curve): {G} 
         
           
-        ''')
+    #     ''')
     
     optimized_5_pl = lambda x: D + (A - D) / ((1 + (x / C) ** B) ** G)
     
@@ -279,6 +291,16 @@ def remove_unit(val:str)->str:
 def get_unit(val:str)->str:
     '''Assumes the units are 4 characters and are located at the end of the string'''
     return val[-5:]
+
+def parse_filename(filename:str)->str:
+    '''Parses the filename passed in by the user to see if there was any extension added to it such as, .xlsx, .txt, .csv, etc
+        Returns the filename without the extension
+    '''
+    if filename.find(".") > -1:
+        stem = filename.split(".")[-1]
+        return stem
+    return filename
+
 
  
 # def temp()->None:
